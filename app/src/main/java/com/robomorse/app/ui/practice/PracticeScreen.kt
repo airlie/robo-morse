@@ -55,7 +55,7 @@ import com.robomorse.app.ui.WrongRed
 import com.robomorse.core.PracticeMode
 
 @Composable
-fun PracticeScreen(vm: PracticeViewModel, onFinished: (Boolean) -> Unit) {
+fun PracticeScreen(vm: PracticeViewModel, onSwitch: (PracticeMode) -> Unit, onFinished: (Boolean) -> Unit) {
     val s by vm.state.collectAsStateWithLifecycle()
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
@@ -87,14 +87,27 @@ fun PracticeScreen(vm: PracticeViewModel, onFinished: (Boolean) -> Unit) {
             },
     ) {
         TopBar(s, onPause = { vm.pause() }, onEnd = { vm.finish(onFinished) })
-        s.banner?.let { Banner(it, onDismiss = vm::dismissBanner, onStop = { vm.finish(onFinished) }) }
+        s.banner?.let {
+            Banner(
+                it,
+                s.bannerAction,
+                onDismiss = vm::dismissBanner,
+                onStop = { vm.finish(onFinished) },
+                onRefresh = { vm.switchTo(PracticeMode.REFRESH, onSwitch) },
+            )
+        }
 
         Box(Modifier.fillMaxWidth().weight(1f).padding(16.dp), contentAlignment = Alignment.Center) {
             when {
                 s.paused -> PausedCard(s, onResume = vm::resume, onEnd = { vm.finish(onFinished) })
                 s.phase == Phase.LOADING || s.phase == Phase.SAVING || s.phase == Phase.FINISHED -> CircularProgressIndicator()
                 s.phase == Phase.READY -> ReadyCard(s, onStart = vm::start)
-                s.phase == Phase.INTRO -> IntroCard(s.introChar)
+                s.phase == Phase.INTRO -> IntroCard(s.introChar, returning = s.mode == PracticeMode.REFRESH)
+                s.phase == Phase.REFRESH_DONE -> RefreshDoneCard(
+                    s,
+                    onLesson = { vm.switchTo(PracticeMode.KOCH, onSwitch) },
+                    onFinish = { vm.finish(onFinished) },
+                )
                 else -> AnswerArea(s, onReplay = vm::replay, onSkip = vm::submitNow)
             }
         }
@@ -103,7 +116,7 @@ fun PracticeScreen(vm: PracticeViewModel, onFinished: (Boolean) -> Unit) {
             learned = s.learned,
             hardMode = s.hardMode,
             haptics = s.haptics,
-            showBackspace = s.mode == PracticeMode.KOCH,
+            showBackspace = s.mode != PracticeMode.ICR,
             onKey = { ch, t -> vm.onKey(ch, t) },
             // Dimmed whenever key presses are not being used as answers.
             modifier = Modifier.padding(bottom = 8.dp).alpha(if (s.acceptingInput) 1f else 0.4f),
@@ -132,11 +145,19 @@ private fun TopBar(s: PracticeUiState, onPause: () -> Unit, onEnd: () -> Unit) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(
-                    if (s.mode == PracticeMode.KOCH) "Koch lesson" else "ICR sprint",
+                    when (s.mode) {
+                        PracticeMode.KOCH -> "Koch lesson"
+                        PracticeMode.ICR -> "ICR sprint"
+                        PracticeMode.REFRESH -> "Refresher"
+                    },
                     style = MaterialTheme.typography.titleMedium,
                 )
                 Text(
-                    "${s.charWpm}/${s.effWpm} WPM · ${s.learned.size} characters",
+                    if (s.mode == PracticeMode.REFRESH) {
+                        "${s.activeCount} of ${s.totalLearned} characters back · ${s.charWpm}/${s.effWpm} WPM"
+                    } else {
+                        "${s.charWpm}/${s.effWpm} WPM · ${s.learned.size} characters"
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -162,13 +183,16 @@ private fun TopBar(s: PracticeUiState, onPause: () -> Unit, onEnd: () -> Unit) {
 }
 
 @Composable
-private fun Banner(text: String, onDismiss: () -> Unit, onStop: () -> Unit) {
+private fun Banner(text: String, action: BannerAction, onDismiss: () -> Unit, onStop: () -> Unit, onRefresh: () -> Unit) {
     Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         Column(Modifier.padding(12.dp)) {
             Text(text, style = MaterialTheme.typography.bodyMedium)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 TextButton(onClick = onDismiss) { Text("Keep going") }
-                TextButton(onClick = onStop) { Text("Finish") }
+                when (action) {
+                    BannerAction.FINISH -> TextButton(onClick = onStop) { Text("Finish") }
+                    BannerAction.REFRESH -> TextButton(onClick = onRefresh) { Text("Start a refresher") }
+                }
             }
         }
     }
@@ -225,11 +249,21 @@ private fun PausedCard(s: PracticeUiState, onResume: () -> Unit, onEnd: () -> Un
 private fun ReadyCard(s: PracticeUiState, onStart: () -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
-            if (s.mode == PracticeMode.KOCH) {
-                "Listen to each group and type the characters as you hear them. Don't count dits and dahs; " +
-                    "let each sound map straight to its letter. If you don't know one, skip it and move on."
-            } else {
-                "One character at a time. Answer as fast as you can. Speed of recognition is what this drill trains."
+            when (s.mode) {
+                PracticeMode.KOCH ->
+                    "Listen to each group and type the characters as you hear them. Don't count dits and dahs; " +
+                        "let each sound map straight to its letter. If you don't know one, skip it and move on."
+                PracticeMode.ICR ->
+                    "One character at a time. Answer as fast as you can. Speed of recognition is what this drill trains."
+                PracticeMode.REFRESH ->
+                    "Back after a break? Let's warm up. You'll start with ${s.learned.joinToString(" and ")}, " +
+                        "hearing each one with its letter shown. " +
+                        (if (s.totalLearned > s.activeCount) {
+                            "More come back, two at a time, as they click again, until all ${s.totalLearned} are back."
+                        } else {
+                            "Then short groups rebuild them until they click again."
+                        }) +
+                        "\n\nGroups are short and a little slower. Anything you miss is replayed and its pattern shown."
             },
             style = MaterialTheme.typography.bodyLarge,
         )
@@ -239,11 +273,45 @@ private fun ReadyCard(s: PracticeUiState, onStart: () -> Unit) {
 }
 
 @Composable
-private fun IntroCard(ch: Char?) {
+private fun IntroCard(ch: Char?, returning: Boolean) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("New character", style = MaterialTheme.typography.titleMedium)
+        Text(if (returning) "Coming back" else "New character", style = MaterialTheme.typography.titleMedium)
         Text(ch?.toString() ?: "", fontSize = 96.sp, fontWeight = FontWeight.Bold)
+        if (returning && ch != null) {
+            // While relearning, the pattern helps reconnect sound and letter.
+            MorsePattern(
+                ch.toString(),
+                unit = 8.dp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                modifier = Modifier.padding(bottom = 12.dp),
+            )
+        }
         Text("Listen to its sound", style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+@Composable
+private fun RefreshDoneCard(s: PracticeUiState, onLesson: () -> Unit, onFinish: () -> Unit) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text("You're back", style = MaterialTheme.typography.headlineMedium, color = CorrectGreen)
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "All ${s.totalLearned} characters are back in play, at ${(s.rollingAccuracy * 100).toInt()}% recent accuracy.",
+            style = MaterialTheme.typography.bodyLarge,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "Your lesson picks up where you left off, and it gives extra practice to anything that came back shaky.",
+            style = MaterialTheme.typography.bodySmall,
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(20.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Button(onClick = onLesson) { Text("Continue with a lesson") }
+            OutlinedButton(onClick = onFinish) { Text("Finish") }
+        }
     }
 }
 

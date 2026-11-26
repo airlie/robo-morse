@@ -24,7 +24,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
 
-enum class Phase { LOADING, READY, INTRO, ANSWERING, FEEDBACK, UNLOCK_OFFER, SAVING, FINISHED }
+enum class Phase { LOADING, READY, INTRO, ANSWERING, FEEDBACK, UNLOCK_OFFER, REFRESH_DONE, SAVING, FINISHED }
+
+/** What a banner offers besides "Keep going". */
+enum class BannerAction { FINISH, REFRESH }
 
 data class PracticeUiState(
     val phase: Phase = Phase.LOADING,
@@ -48,6 +51,10 @@ data class PracticeUiState(
     val attempts: Int = 0,
     val rollingAccuracy: Double = 0.0,
     val banner: String? = null,
+    val bannerAction: BannerAction = BannerAction.FINISH,
+    /** Refresher: how many learned characters are back in play, out of [totalLearned]. */
+    val activeCount: Int = 0,
+    val totalLearned: Int = 0,
     val hardMode: Boolean = false,
     val haptics: Boolean = true,
     val charWpm: Int = 20,
@@ -80,6 +87,7 @@ class PracticeViewModel(private val c: AppContainer, private val mode: PracticeM
     private var declinedUnlock = false
     private var goalAnnounced = false
     private var fatigueAnnounced = false
+    private var rustyOffered = false
     private val pendingIntro = ArrayDeque<Char>()
     private var groupsDone = 0
     private var loopJob: Job? = null
@@ -97,19 +105,26 @@ class PracticeViewModel(private val c: AppContainer, private val mode: PracticeM
             _state.update {
                 it.copy(
                     phase = Phase.READY,
-                    learned = session.learned.toSet(),
+                    learned = session.active.toSet(),
+                    activeCount = session.active.size,
+                    totalLearned = session.learned.size,
                     goalRemainingMs = goalRemaining,
                     hardMode = settings.hardMode,
                     haptics = settings.haptics,
                     charWpm = settings.charWpm,
-                    effWpm = settings.effWpm,
-                    showPatterns = settings.showPatternOnMiss,
+                    effWpm = timing.effWpm.toInt(),
+                    // A refresher always shows the pattern of a miss: it's there to hold your hand.
+                    showPatterns = settings.showPatternOnMiss || mode == PracticeMode.REFRESH,
                 )
             }
         }
     }
 
-    private val timing get() = MorseTiming(settings.charWpm.toDouble(), settings.effWpm.toDouble())
+    /** A refresher spaces characters a little further apart (2 WPM slower effective speed). */
+    private val timing: MorseTiming get() {
+        val eff = if (mode == PracticeMode.REFRESH) (settings.effWpm - 2).coerceAtLeast(5) else settings.effWpm
+        return MorseTiming(settings.charWpm.toDouble(), eff.coerceAtMost(settings.charWpm).toDouble())
+    }
 
     private fun activeNow(): Long = activeMs + (runningSince?.let { System.currentTimeMillis() - it } ?: 0L)
 
@@ -123,7 +138,11 @@ class PracticeViewModel(private val c: AppContainer, private val mode: PracticeM
                 _state.update { it.copy(elapsedMs = activeNow()) }
             }
         }
-        if (session.learned.all { session.statsFor(it).attempts == 0 }) pendingIntro.addAll(session.learned)
+        when {
+            // A refresher reintroduces each character as it comes back, starting with the first.
+            mode == PracticeMode.REFRESH -> pendingIntro.addAll(session.active)
+            session.learned.all { session.statsFor(it).attempts == 0 } -> pendingIntro.addAll(session.learned)
+        }
         loopJob = viewModelScope.launch { runIntrosThenPrompt() }
     }
 
@@ -198,7 +217,7 @@ class PracticeViewModel(private val c: AppContainer, private val mode: PracticeM
             if (keys.isNotEmpty()) keys.removeAt(keys.lastIndex)
         } else {
             val up = ch.uppercaseChar()
-            if (!settings.hardMode && up !in session.learned) return
+            if (!settings.hardMode && up !in session.active) return
             // A key pressed before the sound has started can only be a guess.
             if (charEnds == null) return
             keys += up to uptimeMs
@@ -232,18 +251,21 @@ class PracticeViewModel(private val c: AppContainer, private val mode: PracticeM
                 reviewIndex = null,
                 attempts = session.attemptCount,
                 rollingAccuracy = session.rollingAccuracy,
-                learned = session.learned.toSet(),
+                learned = session.active.toSet(),
             )
         }
         loopJob = viewModelScope.launch { reviewThenContinue(results) }
     }
 
     /** Whether a missed character's correct sound should be replayed (see the setting). */
-    private fun shouldReplay(ch: Char): Boolean = when (settings.replayMissed) {
-        "ALWAYS" -> true
-        "NEVER" -> false
-        // NEW: only the most recently added character, while it is still unfamiliar.
-        else -> session.learned.size > 2 && ch == session.learned.last() && session.statsFor(ch).attempts < 100
+    private fun shouldReplay(ch: Char): Boolean {
+        if (mode == PracticeMode.REFRESH) return true // always, while relearning
+        return when (settings.replayMissed) {
+            "ALWAYS" -> true
+            "NEVER" -> false
+            // NEW: only the most recently added character, while it is still unfamiliar.
+            else -> session.learned.size > 2 && ch == session.learned.last() && session.statsFor(ch).attempts < 100
+        }
     }
 
     /**
@@ -269,7 +291,16 @@ class PracticeViewModel(private val c: AppContainer, private val mode: PracticeM
             return
         }
         updateBanners()
-        if (!declinedUnlock && session.unlockReady()) {
+        if (mode == PracticeMode.REFRESH) {
+            val back = session.refresherAdvance()
+            _state.update { it.copy(activeCount = session.active.size, learned = session.active.toSet()) }
+            if (session.refresherComplete) {
+                _state.update { it.copy(phase = Phase.REFRESH_DONE) }
+                return
+            }
+            pendingIntro.addAll(back)
+            runIntrosThenPrompt()
+        } else if (!declinedUnlock && session.unlockReady()) {
             _state.update { it.copy(phase = Phase.UNLOCK_OFFER, unlockChar = session.nextCharacter()) }
         } else {
             nextPrompt()
@@ -302,16 +333,29 @@ class PracticeViewModel(private val c: AppContainer, private val mode: PracticeM
     private fun updateBanners() {
         val elapsed = activeNow()
         val s = _state.value
-        if (!goalAnnounced && elapsed >= s.goalRemainingMs) {
+        if (!rustyOffered && mode == PracticeMode.KOCH &&
+            session.attemptCount in 12..40 && session.sessionAccuracy < 0.6
+        ) {
+            rustyOffered = true
+            _state.update {
+                it.copy(
+                    banner = "Feeling rusty? A refresher brings your characters back two at a time, starting from the first.",
+                    bannerAction = BannerAction.REFRESH,
+                )
+            }
+        } else if (!goalAnnounced && elapsed >= s.goalRemainingMs) {
             goalAnnounced = true
-            _state.update { it.copy(banner = "Daily goal reached. Stopping here is a good choice: spaced practice beats marathons.") }
+            _state.update { it.copy(bannerAction = BannerAction.FINISH, banner = "Daily goal reached. Stopping here is a good choice: spaced practice beats marathons.") }
         } else if (!fatigueAnnounced && session.fatigueDetected()) {
             fatigueAnnounced = true
-            _state.update { it.copy(banner = "Accuracy is dropping. That usually means diminishing returns, so this is a good place to stop.") }
+            _state.update { it.copy(bannerAction = BannerAction.FINISH, banner = "Accuracy is dropping. That usually means diminishing returns, so this is a good place to stop.") }
         }
     }
 
     fun dismissBanner() = _state.update { it.copy(banner = null) }
+
+    /** Ends this session (saving what was done) and hands over to [next]. */
+    fun switchTo(next: PracticeMode, onSwitch: (PracticeMode) -> Unit) = finish { onSwitch(next) }
 
     fun acceptUnlock() {
         if (_state.value.phase != Phase.UNLOCK_OFFER) return

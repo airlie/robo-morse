@@ -6,7 +6,7 @@ what you find hard and less on what you've mastered.
 
 <p>
   <img src="docs/screenshots/welcome.png" width="200" alt="Welcome screen">
-  <img src="docs/screenshots/home.png" width="200" alt="Home screen with daily goal, streak and character map">
+  <img src="docs/screenshots/home.png" width="200" alt="Home screen with daily goal, streak and the listening and sending modes">
   <img src="docs/screenshots/lesson.png" width="200" alt="Koch lesson showing results for a group">
   <img src="docs/screenshots/sending.png" width="200" alt="Free sending with paddle, decoder and rhythm score">
 </p>
@@ -40,6 +40,10 @@ See [PLAN.md](PLAN.md) for the full design, including the evidence behind each c
   you confuse. Includes the next-character unlock, introductions of new characters, and
   between-session speed adjustment.
 - **ICR sprint:** one character at a time, timed from the moment its sound ends.
+- **Refresher:** for coming back after a break. Characters return two at a time in Koch
+  order, each reintroduced with its sound and pattern, in short, slightly slower groups.
+  Missed characters are always replayed. Suggested on the home screen after 5 days
+  away, and offered mid-lesson if accuracy drops near guessing.
 - **Accurate timing:** tones are synthesized with click-free edges, and character end
   times come from the audio clock (`AudioTimestamp`), so output latency doesn't distort
   response times.

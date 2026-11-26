@@ -65,6 +65,7 @@ private fun AppNav(c: AppContainer) {
                 vm = viewModel { HomeViewModel(c) },
                 onPractice = { nav.navigate("practice/KOCH") },
                 onIcr = { nav.navigate("practice/ICR") },
+                onRefresher = { nav.navigate("practice/REFRESH") },
                 onFreeSend = { nav.navigate("send/FREE") },
                 onEcho = { nav.navigate("send/ECHO") },
                 onStats = { nav.navigate("stats") },
@@ -74,7 +75,10 @@ private fun AppNav(c: AppContainer) {
         }
         composable("practice/{mode}", arguments = listOf(navArgument("mode") { type = NavType.StringType })) { entry ->
             val mode = PracticeMode.valueOf(entry.arguments?.getString("mode") ?: "KOCH")
-            PracticeScreen(viewModel { PracticeViewModel(c, mode) }) { hasSummary ->
+            PracticeScreen(
+                viewModel { PracticeViewModel(c, mode) },
+                onSwitch = { next -> nav.navigate("practice/${next.name}") { popUpTo("home") } },
+            ) { hasSummary ->
                 if (hasSummary) {
                     nav.navigate("summary") { popUpTo("home") }
                 } else {

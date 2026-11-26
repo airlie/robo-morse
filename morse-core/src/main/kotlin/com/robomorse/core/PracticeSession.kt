@@ -2,7 +2,11 @@ package com.robomorse.core
 
 import kotlin.random.Random
 
-enum class PracticeMode { KOCH, ICR }
+/**
+ * KOCH: the main lesson. ICR: single characters, answered fast. REFRESH: a way back in
+ * after time away, bringing learned characters back a couple at a time in Koch order.
+ */
+enum class PracticeMode { KOCH, ICR, REFRESH }
 
 /** One answer the learner gave, aligned to a position in the prompt. */
 data class Answer(val char: Char?, val rtMs: Double?)
@@ -62,6 +66,19 @@ class PracticeSession(
     private var attempts = 0
     private var correct = 0
 
+    // Refresher: how many learned characters (in Koch order) are back in play, the most
+    // recently returned batch, and answers since that batch arrived.
+    private var activeCount = if (mode == PracticeMode.REFRESH) minOf(learnedList.size, REFRESH_START) else learnedList.size
+    private var returnedBatch: List<Char> = learnedList.take(activeCount)
+    private val stageWindow = ArrayDeque<Boolean>()
+
+    /** Characters currently being drilled: all learned ones, except partway through a refresher. */
+    val active: List<Char> get() = if (mode == PracticeMode.REFRESH) learnedList.take(activeCount) else learnedList
+
+    /** Refresher only: every learned character is back and the last stage went well. */
+    var refresherComplete: Boolean = false
+        private set
+
     /** Multiplier on the weak-item weight; raised when things are too easy. */
     var weakBias: Double = 1.0
         private set
@@ -84,9 +101,13 @@ class PracticeSession(
     fun weights(): Map<Char, Double> {
         val scale = speedScale()
         val now = nowMs()
-        val newest = if (learnedList.size > Curriculum.STARTING_CHARACTERS) setOf(learnedList.last()) else emptySet()
+        val newest = when {
+            mode == PracticeMode.REFRESH -> if (activeCount > REFRESH_START) returnedBatch.toSet() else emptySet()
+            learnedList.size > Curriculum.STARTING_CHARACTERS -> setOf(learnedList.last())
+            else -> emptySet()
+        }
         val errorSet = recentErrorChars.toSet()
-        return learnedList.associateWith { c ->
+        return active.associateWith { c ->
             val s = statsFor(c)
             val m = LearnerModel.mastery(s, scale, config)
             config.wBase +
@@ -97,21 +118,23 @@ class PracticeSession(
         }
     }
 
-    /** The next thing to play: one character for ICR, a 3–5 character group for Koch. */
+    /** The next thing to play: one character for ICR, a 3–5 character group for Koch, 1–3 for a refresher. */
     fun nextPrompt(): String {
         val length = when (mode) {
             PracticeMode.ICR -> 1
             PracticeMode.KOCH -> random.nextInt(3, 6)
+            // Short groups while relearning: one or two characters, then up to three.
+            PracticeMode.REFRESH -> if (activeCount <= 4) random.nextInt(1, 3) else random.nextInt(2, 4)
         }
         val out = CharArray(length) { ' ' }
         val pair = confusionQueue.removeFirstOrNull()
-        if (pair != null && mode == PracticeMode.KOCH && length >= 2) {
+        if (pair != null && mode != PracticeMode.ICR && length >= 2) {
             val i = random.nextInt(length)
             var j = random.nextInt(length - 1)
             if (j >= i) j++
             out[i] = pair.first
             out[j] = pair.second
-        } else if (pair != null && mode == PracticeMode.ICR) {
+        } else if (pair != null && (mode == PracticeMode.ICR || length == 1)) {
             out[0] = if (random.nextBoolean()) pair.first else pair.second
         }
         val w = weights()
@@ -161,6 +184,7 @@ class PracticeSession(
         }
         push(rolling, r.correct, config.rollingWindow)
         push(unlockWindow, r.correct, config.unlockWindow)
+        if (c in active) push(stageWindow, r.correct, REFRESH_WINDOW)
         if (firstWindow.size < config.rollingWindow) firstWindow += r.correct
         if (!r.correct) {
             push(recentErrorChars, c, 6)
@@ -168,7 +192,7 @@ class PracticeSession(
             if (a != null && a != c) {
                 val key = c to a
                 confusions[key] = confusions.getOrDefault(key, 0) + 1
-                if (a in learnedList && confusionQueue.size < 3) {
+                if (a in active && confusionQueue.size < 3) {
                     confusionQueue += key
                     push(recentErrorChars, a, 6)
                 }
@@ -193,6 +217,7 @@ class PracticeSession(
 
     /** True when the next Koch character should be offered. */
     fun unlockReady(): Boolean {
+        if (mode == PracticeMode.REFRESH) return false
         if (learnedList.size >= kochOrder.length) return false
         if (unlockWindow.size < config.unlockWindow) return false
         val windowAcc = unlockWindow.count { it }.toDouble() / unlockWindow.size
@@ -200,6 +225,25 @@ class PracticeSession(
         val scale = speedScale()
         if (learnedList.any { LearnerModel.mastery(statsFor(it), scale, config) < config.unlockMinMastery }) return false
         return statsFor(learnedList.last()).acc >= config.unlockNewestAccuracy
+    }
+
+    /**
+     * Refresher: once the characters in play are solid again, brings back the next
+     * batch in Koch order. Returns the returned characters (to reintroduce), or an
+     * empty list. Sets [refresherComplete] when everything is back and solid.
+     */
+    fun refresherAdvance(): List<Char> {
+        if (mode != PracticeMode.REFRESH || refresherComplete) return emptyList()
+        if (stageWindow.size < REFRESH_WINDOW || stageWindow.count { it } < REFRESH_PASS) return emptyList()
+        stageWindow.clear()
+        if (activeCount >= learnedList.size) {
+            refresherComplete = true
+            return emptyList()
+        }
+        val from = activeCount
+        activeCount = minOf(learnedList.size, activeCount + REFRESH_STEP)
+        returnedBatch = learnedList.subList(from, activeCount).toList()
+        return returnedBatch
     }
 
     fun nextCharacter(): Char? = Curriculum.nextToUnlock(kochOrder, learnedList.size)
@@ -238,6 +282,14 @@ class PracticeSession(
         return SessionSummary(attempts, correct, counts.toMap(), confusions.toMap(), unlocked.toList(), changes, stats.toMap())
     }
 }
+
+/** A refresher starts with this many characters and brings back this many per stage. */
+const val REFRESH_START = 2
+const val REFRESH_STEP = 2
+
+/** A refresher stage passes with [REFRESH_PASS] of the last [REFRESH_WINDOW] answers right. */
+const val REFRESH_WINDOW = 8
+const val REFRESH_PASS = 7
 
 /**
  * Between-session effective-speed adjustment. Pass only the sessions since the last
