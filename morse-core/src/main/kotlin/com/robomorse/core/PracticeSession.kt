@@ -144,7 +144,7 @@ class PracticeSession(
             val a = answers.getOrNull(i)
             val answered = a?.char?.uppercaseChar()
             val ok = answered == expected
-            AttemptResult(expected, answered, ok, if (ok) a?.rtMs else null)
+            AttemptResult(expected, answered, ok, if (ok) a.rtMs else null)
         }
         results.forEach(::apply)
         adjustDifficulty()

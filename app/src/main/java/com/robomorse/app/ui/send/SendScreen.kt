@@ -22,12 +22,14 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -102,10 +104,10 @@ fun SendScreen(vm: SendViewModel, sidetone: Sidetone, onBack: () -> Unit) {
         if (s.keyType == KeyType.PADDLE) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Keyer ${s.paddleWpm} WPM", style = MaterialTheme.typography.bodySmall, modifier = Modifier.width(110.dp))
+                val wpmState = remember(s.paddleWpm) { SliderState(s.paddleWpm.toFloat(), 0, 5f..40f) }
                 Slider(
-                    value = s.paddleWpm.toFloat(),
-                    onValueChange = { vm.setPaddleWpm(it.roundToInt()) },
-                    valueRange = 5f..40f,
+                    state = wpmState,
+                    onValueChange = { wpmState.value = it; vm.setPaddleWpm(it.roundToInt()) },
                     modifier = Modifier.weight(1f),
                 )
             }

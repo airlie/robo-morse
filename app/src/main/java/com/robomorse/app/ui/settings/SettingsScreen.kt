@@ -21,6 +21,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -187,18 +188,17 @@ fun SliderRow(
     steps: Int,
     onChange: (Float) -> Unit,
 ) {
-    var local by remember(current) { mutableStateOf(current) }
+    // The setting is saved when the finger lifts, not on every movement.
+    val state = remember(current, range, steps) { SliderState(current.coerceIn(range), steps, range) }
     Column {
         Row {
             Text(label, Modifier.weight(1f))
             Text(value)
         }
         Slider(
-            value = local.coerceIn(range),
-            onValueChange = { local = it },
-            onValueChangeFinished = { onChange(local) },
-            valueRange = range,
-            steps = steps,
+            state = state,
+            onValueChange = { state.value = it },
+            onValueChangeFinished = { onChange(state.value) },
         )
     }
 }
