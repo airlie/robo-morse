@@ -21,7 +21,7 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
 
       - name: Unit tests, lint and debug build
         run: ./gradlew --no-daemon :morse-core:test :app:lintDebug :app:assembleDebug
