@@ -19,9 +19,24 @@ android {
         versionName = "0.1.0"
     }
 
+    // Release signing comes from the developer's own ~/.gradle/gradle.properties
+    // (ROBOMORSE_STORE_FILE etc.). Never commit the keystore or its passwords.
+    val storeFilePath = providers.gradleProperty("ROBOMORSE_STORE_FILE").orNull
+    signingConfigs {
+        if (storeFilePath != null) {
+            create("release") {
+                storeFile = file(storeFilePath)
+                storePassword = providers.gradleProperty("ROBOMORSE_STORE_PASSWORD").get()
+                keyAlias = providers.gradleProperty("ROBOMORSE_KEY_ALIAS").get()
+                keyPassword = providers.gradleProperty("ROBOMORSE_KEY_PASSWORD").get()
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.findByName("release")
         }
     }
     compileOptions {
