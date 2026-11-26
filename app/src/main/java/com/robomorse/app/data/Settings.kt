@@ -43,6 +43,9 @@ data class Settings(
     val echoAllChars: Boolean = false,
     /** Show a small, faint dot-dash pattern under characters you missed. */
     val showPatternOnMiss: Boolean = true,
+    /** Word and callsign copy: current level, and whether to use characters not yet learned. */
+    val copyLevel: String = "SHORT_WORDS",
+    val copyAllChars: Boolean = false,
 )
 
 private val Context.dataStore by preferencesDataStore(name = "settings")
@@ -72,6 +75,8 @@ class SettingsRepository(private val context: Context) {
         val echoAuto = booleanPreferencesKey("echoAuto")
         val echoAllChars = booleanPreferencesKey("echoAllChars")
         val showPatternOnMiss = booleanPreferencesKey("showPatternOnMiss")
+        val copyLevel = stringPreferencesKey("copyLevel")
+        val copyAllChars = booleanPreferencesKey("copyAllChars")
     }
 
     val settings: Flow<Settings> = context.dataStore.data.map { p -> p.toSettings() }
@@ -104,6 +109,8 @@ class SettingsRepository(private val context: Context) {
             echoAuto = this[K.echoAuto] ?: d.echoAuto,
             echoAllChars = this[K.echoAllChars] ?: d.echoAllChars,
             showPatternOnMiss = this[K.showPatternOnMiss] ?: d.showPatternOnMiss,
+            copyLevel = this[K.copyLevel] ?: d.copyLevel,
+            copyAllChars = this[K.copyAllChars] ?: d.copyAllChars,
         )
     }
 
@@ -133,6 +140,8 @@ class SettingsRepository(private val context: Context) {
             p[K.echoAuto] = s.echoAuto
             p[K.echoAllChars] = s.echoAllChars
             p[K.showPatternOnMiss] = s.showPatternOnMiss
+            p[K.copyLevel] = s.copyLevel
+            p[K.copyAllChars] = s.copyAllChars
         }
     }
 }

@@ -19,6 +19,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.robomorse.app.data.Settings
+import com.robomorse.app.ui.copy.CopyScreen
+import com.robomorse.app.ui.copy.CopyViewModel
 import com.robomorse.app.ui.RoboMorseTheme
 import com.robomorse.app.ui.home.HomeScreen
 import com.robomorse.app.ui.home.HomeViewModel
@@ -66,6 +68,7 @@ private fun AppNav(c: AppContainer) {
                 onPractice = { nav.navigate("practice/KOCH") },
                 onIcr = { nav.navigate("practice/ICR") },
                 onRefresher = { nav.navigate("practice/REFRESH") },
+                onCopy = { nav.navigate("copy") },
                 onFreeSend = { nav.navigate("send/FREE") },
                 onEcho = { nav.navigate("send/ECHO") },
                 onStats = { nav.navigate("stats") },
@@ -98,6 +101,7 @@ private fun AppNav(c: AppContainer) {
                 },
             )
         }
+        composable("copy") { CopyScreen(viewModel { CopyViewModel(c) }, onBack = { nav.popBackStack() }) }
         composable("stats") {
             StatsScreen(viewModel { StatsViewModel(c) }, onBack = { nav.popBackStack() }) { ch -> nav.navigate("char/${ch.code}") }
         }

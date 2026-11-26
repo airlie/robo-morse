@@ -108,6 +108,7 @@ fun HomeScreen(
     vm: HomeViewModel,
     onPractice: () -> Unit,
     onIcr: () -> Unit,
+    onCopy: () -> Unit,
     onRefresher: () -> Unit,
     onFreeSend: () -> Unit,
     onEcho: () -> Unit,
@@ -133,20 +134,28 @@ fun HomeScreen(
         LessonCard(s, learnedCount, onPractice)
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ModeTile(
+                title = "Word copy",
+                motif = "W",
+                body = "Whole words, ham shorthand and callsigns.",
+                onClick = onCopy,
+                modifier = Modifier.weight(1f),
+            )
+            ModeTile(
                 title = "ICR sprint",
                 motif = "I",
                 body = "Single characters. Answer as fast as you can.",
                 onClick = onIcr,
                 modifier = Modifier.weight(1f),
             )
-            ModeTile(
-                title = "Refresher",
-                motif = "R",
-                body = "Back after a break? Rebuild two letters at a time.",
-                onClick = onRefresher,
-                modifier = Modifier.weight(1f),
-            )
         }
+        ModeTile(
+            title = "Refresher",
+            motif = "R",
+            body = "Back after a break? Rebuild your characters two at a time.",
+            onClick = onRefresher,
+            modifier = Modifier.fillMaxWidth(),
+            compact = true,
+        )
 
         SectionTitle("Send", "Key it yourself on a straight key or paddle")
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -317,10 +326,17 @@ private fun LessonCard(s: HomeState, learnedCount: Int, onClick: () -> Unit) {
 
 /** A secondary mode: title, a small Morse motif, and one line on what it trains. */
 @Composable
-private fun ModeTile(title: String, motif: String, body: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun ModeTile(
+    title: String,
+    motif: String,
+    body: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    compact: Boolean = false,
+) {
     Card(
         onClick = onClick,
-        modifier = modifier.heightIn(min = 128.dp),
+        modifier = if (compact) modifier else modifier.heightIn(min = 128.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
     ) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {

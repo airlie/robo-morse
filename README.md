@@ -40,6 +40,9 @@ See [PLAN.md](PLAN.md) for the full design, including the evidence behind each c
   you confuse. Includes the next-character unlock, introductions of new characters, and
   between-session speed adjustment.
 - **ICR sprint:** one character at a time, timed from the moment its sound ends.
+- **Word & callsign copy:** hear a whole word, ham abbreviation or callsign and type it.
+  Levels run Short words → Words → Callsigns → Mixed and follow how you're doing; misses
+  are replayed and come back a few items later, and shorthand like QTH or 73 is explained.
 - **Refresher:** for coming back after a break. Characters return two at a time in Koch
   order, each reintroduced with its sound and pattern, in short, slightly slower groups.
   Missed characters are always replayed. Suggested on the home screen after 5 days

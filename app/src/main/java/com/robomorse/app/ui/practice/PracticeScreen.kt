@@ -42,6 +42,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
@@ -320,10 +321,10 @@ private fun RefreshDoneCard(s: PracticeUiState, onLesson: () -> Unit, onFinish: 
  * underscores, which look like dahs.
  */
 @Composable
-private fun Slot(text: String, borderColor: Color, textColor: Color, emphasized: Boolean = false) {
+internal fun Slot(text: String, borderColor: Color, textColor: Color, emphasized: Boolean = false, width: Dp = 48.dp) {
     Box(
         Modifier
-            .size(width = 48.dp, height = 60.dp)
+            .size(width = width, height = 60.dp)
             .border(if (emphasized) 3.dp else 2.dp, borderColor, RoundedCornerShape(10.dp)),
         contentAlignment = Alignment.Center,
     ) {

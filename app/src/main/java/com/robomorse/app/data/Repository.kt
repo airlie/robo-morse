@@ -116,6 +116,30 @@ class Repository(private val dao: MorseDao, val settings: SettingsRepository) {
         return SaveResult(id, newEff, s.effWpm)
     }
 
+    /**
+     * Saves a word and callsign copy session. It counts toward practice time and streaks,
+     * but its words aren't character attempts, so it leaves character stats alone.
+     */
+    suspend fun saveCopySession(startedAt: Long, endedAt: Long, items: Int, correct: Int) {
+        val s = settings.current()
+        dao.saveSession(
+            session = SessionEntity(
+                mode = COPY_MODE,
+                startedAt = startedAt,
+                endedAt = endedAt,
+                charWpm = s.charWpm,
+                effWpm = s.effWpm,
+                attempts = items,
+                correct = correct,
+                learnedCount = s.learnedCount,
+                unlocked = "",
+            ),
+            attempts = emptyList(),
+            stats = emptyList(),
+            confusions = emptyMap(),
+        )
+    }
+
     suspend fun resetProgress() {
         dao.clearAll()
         settings.update {
@@ -124,6 +148,9 @@ class Repository(private val dao: MorseDao, val settings: SettingsRepository) {
         }
     }
 }
+
+/** Session mode stored for word and callsign copy. */
+const val COPY_MODE = "COPY"
 
 /** Minutes practiced on each day, from the session log. */
 fun minutesByDay(sessions: List<SessionEntity>): Map<LocalDate, Double> =
