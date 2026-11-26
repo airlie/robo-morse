@@ -90,7 +90,7 @@ fun PracticeScreen(vm: PracticeViewModel, onFinished: (Boolean) -> Unit) {
 
         Box(Modifier.fillMaxWidth().weight(1f).padding(16.dp), contentAlignment = Alignment.Center) {
             when {
-                s.paused -> PausedCard(s.pauseReason, onResume = vm::resume, onEnd = { vm.finish(onFinished) })
+                s.paused -> PausedCard(s, onResume = vm::resume, onEnd = { vm.finish(onFinished) })
                 s.phase == Phase.LOADING || s.phase == Phase.SAVING || s.phase == Phase.FINISHED -> CircularProgressIndicator()
                 s.phase == Phase.READY -> ReadyCard(s, onStart = vm::start)
                 s.phase == Phase.INTRO -> IntroCard(s.introChar)
@@ -174,7 +174,31 @@ private fun Banner(text: String, onDismiss: () -> Unit, onStop: () -> Unit) {
 }
 
 @Composable
-private fun PausedCard(reason: String?, onResume: () -> Unit, onEnd: () -> Unit) {
+private fun PausedCard(s: PracticeUiState, onResume: () -> Unit, onEnd: () -> Unit) {
+    if (s.breather) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("Take a breath", style = MaterialTheme.typography.headlineMedium)
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "${s.groupsDone} groups done · recent accuracy ${(s.rollingAccuracy * 100).toInt()}%",
+                style = MaterialTheme.typography.bodyLarge,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Relax your shoulders and hands. Carry on whenever you're ready; the clock is stopped.",
+                style = MaterialTheme.typography.bodySmall,
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(20.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Button(onClick = onResume) { Text("Continue") }
+                OutlinedButton(onClick = onEnd) { Text("End session") }
+            }
+        }
+        return
+    }
+    val reason = s.pauseReason
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text("Paused", style = MaterialTheme.typography.headlineMedium)
         reason?.let {
@@ -273,7 +297,7 @@ private fun AnswerArea(s: PracticeUiState, onReplay: () -> Unit, onSkip: () -> U
                 }
             }
             Spacer(Modifier.height(12.dp))
-            Text("Keyboard is off until the next group plays", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Next group in a moment", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         } else {
             Text(
                 if (s.playing) "♪ Listening…" else "Your answer",

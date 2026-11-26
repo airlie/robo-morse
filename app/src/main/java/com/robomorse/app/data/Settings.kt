@@ -31,6 +31,12 @@ data class Settings(
     val reminderMinute: Int = 0,
     val practicePlan: String = "",
     val speedChangeAfterSessionId: Long = 0,
+    /** ALWAYS, NEW (only the newest character), or NEVER. */
+    val replayMissed: String = "NEW",
+    /** Silence after feedback before the next group starts. */
+    val groupGapMs: Int = 1200,
+    /** Offer a short break every N groups (0 = never). */
+    val breatherEvery: Int = 10,
 )
 
 private val Context.dataStore by preferencesDataStore(name = "settings")
@@ -53,6 +59,9 @@ class SettingsRepository(private val context: Context) {
         val reminderMinute = intPreferencesKey("reminderMinute")
         val practicePlan = stringPreferencesKey("practicePlan")
         val speedChangeAfter = longPreferencesKey("speedChangeAfterSessionId")
+        val replayMissed = stringPreferencesKey("replayMissed")
+        val groupGapMs = intPreferencesKey("groupGapMs")
+        val breatherEvery = intPreferencesKey("breatherEvery")
     }
 
     val settings: Flow<Settings> = context.dataStore.data.map { p -> p.toSettings() }
@@ -78,6 +87,9 @@ class SettingsRepository(private val context: Context) {
             reminderMinute = this[K.reminderMinute] ?: d.reminderMinute,
             practicePlan = this[K.practicePlan] ?: d.practicePlan,
             speedChangeAfterSessionId = this[K.speedChangeAfter] ?: d.speedChangeAfterSessionId,
+            replayMissed = this[K.replayMissed] ?: d.replayMissed,
+            groupGapMs = this[K.groupGapMs] ?: d.groupGapMs,
+            breatherEvery = this[K.breatherEvery] ?: d.breatherEvery,
         )
     }
 
@@ -100,6 +112,9 @@ class SettingsRepository(private val context: Context) {
             p[K.reminderMinute] = s.reminderMinute
             p[K.practicePlan] = s.practicePlan
             p[K.speedChangeAfter] = s.speedChangeAfterSessionId
+            p[K.replayMissed] = s.replayMissed
+            p[K.groupGapMs] = s.groupGapMs
+            p[K.breatherEvery] = s.breatherEvery
         }
     }
 }

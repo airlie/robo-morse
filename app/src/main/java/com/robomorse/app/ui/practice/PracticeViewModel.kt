@@ -40,6 +40,9 @@ data class PracticeUiState(
     val unlockChar: Char? = null,
     val paused: Boolean = false,
     val pauseReason: String? = null,
+    /** A planned short break every few groups (shown like a pause). */
+    val breather: Boolean = false,
+    val groupsDone: Int = 0,
     val elapsedMs: Long = 0,
     val goalRemainingMs: Long = 0,
     val attempts: Int = 0,
@@ -77,6 +80,7 @@ class PracticeViewModel(private val c: AppContainer, private val mode: PracticeM
     private var goalAnnounced = false
     private var fatigueAnnounced = false
     private val pendingIntro = ArrayDeque<Char>()
+    private var groupsDone = 0
     private var loopJob: Job? = null
     private var idleJob: Job? = null
     private var replayJob: Job? = null
@@ -232,20 +236,35 @@ class PracticeViewModel(private val c: AppContainer, private val mode: PracticeM
         loopJob = viewModelScope.launch { reviewThenContinue(results) }
     }
 
-    /** Plays only the missed characters, one at a time, each highlighted as it plays. */
+    /** Whether a missed character's correct sound should be replayed (see the setting). */
+    private fun shouldReplay(ch: Char): Boolean = when (settings.replayMissed) {
+        "ALWAYS" -> true
+        "NEVER" -> false
+        // NEW: only the most recently added character, while it is still unfamiliar.
+        else -> session.learned.size > 2 && ch == session.learned.last() && session.statsFor(ch).attempts < 100
+    }
+
+    /**
+     * Shows the result, replays missed characters if the setting asks for it, then
+     * leaves a gap before the next group, with an occasional breather.
+     */
     private suspend fun reviewThenContinue(results: List<AttemptResult>) {
-        val missed = results.indices.filter { !results[it].correct }
-        if (missed.isEmpty()) {
-            delay(450)
-        } else {
-            delay(400)
-            for (i in missed) {
+        val replay = results.indices.filter { !results[it].correct && shouldReplay(results[it].expected) }
+        if (results.any { !it.correct }) delay(900) // time to read what was missed
+        if (replay.isNotEmpty()) {
+            for (i in replay) {
                 _state.update { it.copy(reviewIndex = i) }
                 play(results[i].expected.toString())
                 delay(350)
             }
             _state.update { it.copy(reviewIndex = null) }
-            delay(600)
+        }
+        delay(settings.groupGapMs.toLong())
+        groupsDone++
+        if (settings.breatherEvery > 0 && groupsDone % settings.breatherEvery == 0) {
+            _state.update { it.copy(breather = true, groupsDone = groupsDone) }
+            pause()
+            return
         }
         updateBanners()
         if (!declinedUnlock && session.unlockReady()) {
@@ -271,7 +290,7 @@ class PracticeViewModel(private val c: AppContainer, private val mode: PracticeM
     fun resume() {
         if (!_state.value.paused) return
         runningSince = System.currentTimeMillis()
-        _state.update { it.copy(paused = false, pauseReason = null) }
+        _state.update { it.copy(paused = false, pauseReason = null, breather = false) }
         loopJob = viewModelScope.launch {
             delay(600) // a moment to get ready before the sound starts
             runIntrosThenPrompt()

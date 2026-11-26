@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Robo Morse: a robot face whose eyes are two dits and whose mouth is a dah. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- antenna -->
+    <path android:fillColor="#F4EFE3" android:pathData="M52.5,28 H55.5 V40 H52.5 Z" />
+    <path android:fillColor="#F2C14E" android:pathData="M49,26 A5,5 0 1,0 59,26 A5,5 0 1,0 49,26 Z" />
+    <!-- ears -->
+    <path android:fillColor="#C9D3DE" android:pathData="M28,52 H30 V68 H28 A2,2 0 0,1 26,66 V54 A2,2 0 0,1 28,52 Z" />
+    <path android:fillColor="#C9D3DE" android:pathData="M78,52 H80 A2,2 0 0,1 82,54 V66 A2,2 0 0,1 80,68 H78 Z" />
+    <!-- head -->
+    <path android:fillColor="#F4EFE3" android:pathData="M40,40 H68 A10,10 0 0,1 78,50 V70 A10,10 0 0,1 68,80 H40 A10,10 0 0,1 30,70 V50 A10,10 0 0,1 40,40 Z" />
+    <!-- eyes: dit dit -->
+    <path android:fillColor="#1F3A5F" android:pathData="M40.5,55 A4.5,4.5 0 1,0 49.5,55 A4.5,4.5 0 1,0 40.5,55 Z" />
+    <path android:fillColor="#1F3A5F" android:pathData="M58.5,55 A4.5,4.5 0 1,0 67.5,55 A4.5,4.5 0 1,0 58.5,55 Z" />
+    <!-- mouth: dah -->
+    <path android:fillColor="#E0A526" android:pathData="M44.5,66 H63.5 A3,3 0 0,1 63.5,72 H44.5 A3,3 0 0,1 44.5,66 Z" />
+</vector>

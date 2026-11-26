@@ -12,6 +12,7 @@ class AppContainer(app: Application) {
     val settings = SettingsRepository(app)
     val repository = Repository(MorseDatabase.create(app).dao(), settings)
     val player = MorsePlayer()
+    val sidetone = com.robomorse.app.audio.Sidetone(app)
 
     /** Hand-off from the practice screen to the summary screen. */
     var lastResult: PracticeResult? = null

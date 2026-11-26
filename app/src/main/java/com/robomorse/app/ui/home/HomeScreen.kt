@@ -96,6 +96,8 @@ fun HomeScreen(
     vm: HomeViewModel,
     onPractice: () -> Unit,
     onIcr: () -> Unit,
+    onFreeSend: () -> Unit,
+    onEcho: () -> Unit,
     onStats: () -> Unit,
     onSettings: () -> Unit,
     onCharacter: (Char) -> Unit,
@@ -135,6 +137,20 @@ fun HomeScreen(
             Text("Start practice", style = MaterialTheme.typography.titleMedium)
         }
         OutlinedButton(onClick = onIcr, modifier = Modifier.fillMaxWidth()) { Text("ICR sprint (speed of recognition)") }
+
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Sending", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Build your rhythm with an on-screen straight key or iambic paddle.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedButton(onClick = onEcho, modifier = Modifier.weight(1f)) { Text("Echo") }
+                    OutlinedButton(onClick = onFreeSend, modifier = Modifier.weight(1f)) { Text("Free sending") }
+                }
+            }
+        }
 
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {

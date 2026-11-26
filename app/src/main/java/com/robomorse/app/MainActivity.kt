@@ -31,6 +31,9 @@ import com.robomorse.app.ui.stats.StatsScreen
 import com.robomorse.app.ui.stats.StatsViewModel
 import com.robomorse.app.ui.summary.SummaryScreen
 import com.robomorse.core.PracticeMode
+import com.robomorse.app.ui.send.SendMode
+import com.robomorse.app.ui.send.SendScreen
+import com.robomorse.app.ui.send.SendViewModel
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -62,6 +65,8 @@ private fun AppNav(c: AppContainer) {
                 vm = viewModel { HomeViewModel(c) },
                 onPractice = { nav.navigate("practice/KOCH") },
                 onIcr = { nav.navigate("practice/ICR") },
+                onFreeSend = { nav.navigate("send/FREE") },
+                onEcho = { nav.navigate("send/ECHO") },
                 onStats = { nav.navigate("stats") },
                 onSettings = { nav.navigate("settings") },
                 onCharacter = { ch -> nav.navigate("char/${ch.code}") },
@@ -97,5 +102,9 @@ private fun AppNav(c: AppContainer) {
             CharacterDetailScreen(viewModel { StatsViewModel(c) }, ch, onBack = { nav.popBackStack() })
         }
         composable("settings") { SettingsScreen(c, onBack = { nav.popBackStack() }) }
+        composable("send/{mode}", arguments = listOf(navArgument("mode") { type = NavType.StringType })) { entry ->
+            val mode = SendMode.valueOf(entry.arguments?.getString("mode") ?: "FREE")
+            SendScreen(viewModel { SendViewModel(c, mode, c.sidetone) }, c.sidetone, onBack = { nav.popBackStack() })
+        }
     }
 }

@@ -15,6 +15,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -39,6 +40,7 @@ import com.robomorse.app.data.Settings
 import com.robomorse.app.reminder.Reminders
 import com.robomorse.core.MorseTiming
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 @Composable
 fun SettingsScreen(c: AppContainer, onBack: () -> Unit) {
@@ -120,6 +122,31 @@ fun SettingsScreen(c: AppContainer, onBack: () -> Unit) {
             onValueChange = { plan = it; update { cur -> cur.copy(practicePlan = it) } },
             label = { Text("My plan: when and where I'll practice") },
             modifier = Modifier.fillMaxWidth(),
+        )
+
+        HorizontalDivider()
+        Section("Pacing")
+        SliderRow(
+            "Pause between groups", "%.1f s".format(s.groupGapMs / 1000f),
+            s.groupGapMs / 1000f, 0.5f..4f, 6,
+        ) { v -> update { it.copy(groupGapMs = (v * 2).roundToInt() * 500) } }
+        SliderRow(
+            "Breather", if (s.breatherEvery == 0) "Off" else "every ${s.breatherEvery} groups",
+            s.breatherEvery.toFloat(), 0f..20f, 3,
+        ) { v -> update { it.copy(breatherEvery = (v / 5).roundToInt() * 5) } }
+        Text("Replay missed characters", style = MaterialTheme.typography.bodyLarge)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("NEW" to "Newest only", "ALWAYS" to "Always", "NEVER" to "Never").forEach { (key, label) ->
+                FilterChip(
+                    selected = s.replayMissed == key,
+                    onClick = { update { it.copy(replayMissed = key) } },
+                    label = { Text(label) },
+                )
+            }
+        }
+        Text(
+            "Hearing the right sound helps most with a character you've just been introduced to.",
+            style = MaterialTheme.typography.bodySmall,
         )
 
         HorizontalDivider()
