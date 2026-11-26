@@ -106,6 +106,24 @@ Method and order of characters follow the Koch method as used by
 [CW Academy](https://cwops.org/cw-academy/). Research references are listed in
 [PLAN.md](PLAN.md#15-references). This project is not affiliated with any of them.
 
+## Use of AI
+
+This project was built with heavy AI assistance, and it's fair to say so up front.
+
+- **Who did what:** the design, research summary and nearly all of the code were
+  written by Anthropic's Claude (via Claude Code), working from the project owner's
+  goals and feedback. The owner decided what to build, tested each version on real
+  phones, and asked for the changes (pacing, pause, replay behaviour and so on).
+- **How it was checked:** the core logic (timing, adaptive engine, decoder, keyer,
+  streaks) has unit tests, and every feature was run on an Android device before
+  being committed. That doesn't make it bug-free; issues are welcome.
+- **What still needs a human check:** the research claims in [PLAN.md](PLAN.md) and
+  the in-app "Did you know?" facts were written from the AI's knowledge plus limited
+  web searches. They haven't all been checked against primary sources yet (this is
+  tracked in the code). Treat them as a starting point, not citations.
+- **Commits:** commits that include AI-written code carry a `Co-Authored-By: Claude`
+  trailer.
+
 ## License
 
 [MIT](LICENSE)
