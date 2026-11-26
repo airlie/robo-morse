@@ -1,7 +1,6 @@
 package com.robomorse.core
 
 import kotlin.math.abs
-import kotlin.math.exp
 import kotlin.math.sqrt
 
 /** One key-down (mark) or key-up (gap) interval, in milliseconds. */
@@ -99,6 +98,9 @@ class SendDecoder(initialWpm: Double = 15.0, private val alpha: Double = 0.25) {
     }
 }
 
+/** One part of the rhythm score, 0–100, with a short reading for the learner. */
+data class FistPart(val name: String, val score: Int, val reading: String)
+
 /** How even a sender's rhythm is, compared with ideal timing at their own speed. */
 data class FistReport(
     val estWpm: Double,
@@ -107,42 +109,106 @@ data class FistReport(
     val elementGapRatio: Double?,
     val charGapRatio: Double?,
     val wordGapRatio: Double?,
+    /** Spread of dit, dah and element-gap lengths after allowing for touch timing noise. */
     val variability: Double,
     val score: Int,
     val marks: Int,
+    val parts: List<FistPart>,
+    /** The single most useful thing to work on, or praise if everything is good. */
+    val tip: String,
 )
 
 object FistAnalyzer {
     /**
-     * Analyzes [intervals]. Marks are split into dits and dahs at the midpoint
-     * between the shortest and longest mark clusters; ideal ratios are dah 3,
-     * element gap 1, character gap 3, word gap 7 dit-lengths.
+     * Touchscreens report timing to the nearest few milliseconds; that noise is
+     * removed from the spread before judging consistency, so it isn't blamed on the sender.
      */
-    fun analyze(intervals: List<KeyInterval>): FistReport? {
+    const val TOUCH_NOISE_MS = 8.0
+
+    /**
+     * Analyzes [intervals]. Marks are split into dits and dahs at the midpoint
+     * between the shortest and longest marks; ideal ratios are dah 3, element gap 1,
+     * character gap 3, word gap 7 dit-lengths.
+     *
+     * The score is a weighted average of four parts. Each part has a tolerance band
+     * (good operators aren't metronomes), so small deviations cost nothing and larger
+     * ones cost progressively more.
+     */
+    fun analyze(intervals: List<KeyInterval>, noiseMs: Double = TOUCH_NOISE_MS): FistReport? {
         val marks = intervals.filter { it.on }.map { it.ms }
         if (marks.size < 3) return null
         val (dits, dahs) = split(marks)
         val dit = if (dits.isNotEmpty()) dits.average() else dahs.average() / 3
         val dahRatio = if (dits.isNotEmpty() && dahs.isNotEmpty()) dahs.average() / dits.average() else null
 
-        val gaps = intervals.filter { !it.on }.map { it.ms / dit }
-        val elementGaps = gaps.filter { it < 2 }
-        val charGaps = gaps.filter { it in 2.0..5.0 }
-        val wordGaps = gaps.filter { it > 5 && it < 20 } // longer is just a pause
-        val eg = elementGaps.averageOrNull()
-        val cg = charGaps.averageOrNull()
-        val wg = wordGaps.averageOrNull()
+        val gapsMs = intervals.filter { !it.on }.map { it.ms }
+        val elementGapsMs = gapsMs.filter { it / dit < 2 }
+        val gaps = gapsMs.map { it / dit }
+        val eg = elementGapsMs.map { it / dit }.averageOrNull()
+        val cg = gaps.filter { it in 2.0..5.0 }.averageOrNull()
+        val wg = gaps.filter { it > 5 && it < 20 }.averageOrNull() // longer is just a pause
 
-        val variability = (cv(dits) + cv(dahs) + cv(elementGaps)) / 3
-        // Each term is a relative error; the score falls off smoothly as they add up.
-        var penalty = 0.0
-        dahRatio?.let { penalty += abs(it - 3) / 3 }
-        eg?.let { penalty += abs(it - 1) }
-        cg?.let { penalty += abs(it - 3) / 3 * 0.7 }
-        penalty += variability * 1.5
-        val score = (100 * exp(-1.6 * penalty)).toInt().coerceIn(0, 100)
+        val cvs = listOf(dits, dahs, elementGapsMs).filter { it.size >= 2 }.map { cv(it, noiseMs) }
+        val variability = cvs.averageOrNull() ?: 0.0
 
-        return FistReport(1200 / dit, dit, dahRatio, eg, cg, wg, variability, score, marks.size)
+        val parts = mutableListOf<Pair<FistPart, Double>>() // part to weight
+        dahRatio?.let { r ->
+            val s = band(abs(r - 3), tol = 0.3, span = 1.0)
+            parts += FistPart("Dah length", s, "%.1f× a dit (ideal 3)".format(r)) to 30.0
+        }
+        // Most letters have several elements, so most short gaps should be inside letters.
+        // If almost none are, the sender is pausing so long that letters fall apart.
+        val nonPauseGaps = gaps.count { it < 20 }
+        val breakingApart = marks.size >= 5 && nonPauseGaps >= 4 && gaps.count { it < 2 } < nonPauseGaps * 0.25
+        if (breakingApart) {
+            parts += FistPart("Gaps inside letters", 20, "letters breaking apart") to 25.0
+        } else eg?.let { e ->
+            val s = band(abs(e - 1), tol = 0.15, span = 0.8)
+            parts += FistPart("Gaps inside letters", s, "%.1f dits (ideal 1)".format(e)) to 25.0
+        }
+        cg?.let { g ->
+            // Too short runs letters together; a little long is fine (that's Farnsworth spacing).
+            val s = if (g < 3) band(3 - g, tol = 0.3, span = 1.2) else band(g - 3, tol = 1.5, span = 2.0)
+            parts += FistPart("Gaps between letters", s, "%.1f dits (ideal 3)".format(g)) to 15.0
+        }
+        if (cvs.isNotEmpty()) {
+            val s = band(variability, tol = 0.08, span = 0.3)
+            parts += FistPart("Evenness", s, "%.0f%% variation".format(variability * 100)) to 30.0
+        }
+        // Blend the weighted average with the weakest part, so one clear problem
+        // can't hide behind three good parts.
+        val score = if (parts.isEmpty()) 0 else {
+            val mean = parts.sumOf { it.first.score * it.second } / parts.sumOf { it.second }
+            val weakest = parts.minOf { it.first.score }.toDouble()
+            (0.6 * mean + 0.4 * weakest).toInt().coerceIn(0, 100)
+        }
+
+        return FistReport(
+            estWpm = 1200 / dit, ditMs = dit,
+            dahDitRatio = dahRatio, elementGapRatio = eg, charGapRatio = cg, wordGapRatio = wg,
+            variability = variability, score = score, marks = marks.size,
+            parts = parts.map { it.first },
+            tip = if (breakingApart) "Your letters are breaking apart: keep the dits and dahs of each letter close together, then pause between letters."
+            else tip(dahRatio, eg, cg, parts.map { it.first }),
+        )
+    }
+
+    /** 100 inside the tolerance, falling linearly to 0 over [span] beyond it. */
+    private fun band(err: Double, tol: Double, span: Double): Int =
+        (100 * (1 - ((err - tol).coerceAtLeast(0.0) / span))).toInt().coerceIn(0, 100)
+
+    private fun tip(dah: Double?, eg: Double?, cg: Double?, parts: List<FistPart>): String {
+        val worst = parts.minByOrNull { it.score } ?: return "Keep sending: a few more letters are needed for a score."
+        if (worst.score >= 85) return "Nice, even rhythm. Try a little faster, or longer words."
+        return when (worst.name) {
+            "Dah length" -> if ((dah ?: 3.0) < 3) "Hold your dahs longer: they're %.1f× a dit; aim for 3×.".format(dah)
+            else "Shorten your dahs a little: they're %.1f× a dit; aim for 3×.".format(dah)
+            "Gaps inside letters" -> if ((eg ?: 1.0) > 1) "Close up the gaps inside each letter: lift and press again quickly."
+            else "Leave a tiny pause between the dits and dahs of a letter."
+            "Gaps between letters" -> if ((cg ?: 3.0) < 3) "Pause a little longer between letters so they don't run together."
+            else "Bring letters a bit closer together."
+            else -> "Aim for evenness: every dit the same length, and every dah the same length."
+        }
     }
 
     private fun split(marks: List<Double>): Pair<List<Double>, List<Double>> {
@@ -158,10 +224,12 @@ object FistAnalyzer {
 
     private fun List<Double>.averageOrNull() = if (isEmpty()) null else average()
 
-    private fun cv(xs: List<Double>): Double {
+    /** Coefficient of variation with measurement noise [noiseMs] removed from the spread. */
+    private fun cv(xs: List<Double>, noiseMs: Double): Double {
         if (xs.size < 2) return 0.0
         val m = xs.average()
-        val sd = sqrt(xs.sumOf { (it - m) * (it - m) } / (xs.size - 1))
+        val variance = xs.sumOf { (it - m) * (it - m) } / (xs.size - 1)
+        val sd = sqrt((variance - noiseMs * noiseMs).coerceAtLeast(0.0))
         return if (m == 0.0) 0.0 else sd / m
     }
 }

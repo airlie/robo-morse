@@ -37,6 +37,10 @@ data class Settings(
     val groupGapMs: Int = 1200,
     /** Offer a short break every N groups (0 = never). */
     val breatherEvery: Int = 10,
+    /** Echo sending practice: current level, automatic progression, and character set. */
+    val echoLevel: String = "LETTERS",
+    val echoAuto: Boolean = true,
+    val echoAllChars: Boolean = false,
 )
 
 private val Context.dataStore by preferencesDataStore(name = "settings")
@@ -62,6 +66,9 @@ class SettingsRepository(private val context: Context) {
         val replayMissed = stringPreferencesKey("replayMissed")
         val groupGapMs = intPreferencesKey("groupGapMs")
         val breatherEvery = intPreferencesKey("breatherEvery")
+        val echoLevel = stringPreferencesKey("echoLevel")
+        val echoAuto = booleanPreferencesKey("echoAuto")
+        val echoAllChars = booleanPreferencesKey("echoAllChars")
     }
 
     val settings: Flow<Settings> = context.dataStore.data.map { p -> p.toSettings() }
@@ -90,6 +97,9 @@ class SettingsRepository(private val context: Context) {
             replayMissed = this[K.replayMissed] ?: d.replayMissed,
             groupGapMs = this[K.groupGapMs] ?: d.groupGapMs,
             breatherEvery = this[K.breatherEvery] ?: d.breatherEvery,
+            echoLevel = this[K.echoLevel] ?: d.echoLevel,
+            echoAuto = this[K.echoAuto] ?: d.echoAuto,
+            echoAllChars = this[K.echoAllChars] ?: d.echoAllChars,
         )
     }
 
@@ -115,6 +125,9 @@ class SettingsRepository(private val context: Context) {
             p[K.replayMissed] = s.replayMissed
             p[K.groupGapMs] = s.groupGapMs
             p[K.breatherEvery] = s.breatherEvery
+            p[K.echoLevel] = s.echoLevel
+            p[K.echoAuto] = s.echoAuto
+            p[K.echoAllChars] = s.echoAllChars
         }
     }
 }

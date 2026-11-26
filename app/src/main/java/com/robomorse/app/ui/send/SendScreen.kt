@@ -16,12 +16,17 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Switch
 import androidx.compose.material3.SliderState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -49,6 +54,7 @@ import com.robomorse.app.audio.Sidetone
 import com.robomorse.app.ui.CorrectGreen
 import com.robomorse.app.ui.WrongRed
 import com.robomorse.core.FistReport
+import com.robomorse.core.EchoLevel
 import com.robomorse.core.IambicMode
 import com.robomorse.core.KeyInterval
 import kotlin.math.abs
@@ -81,14 +87,20 @@ fun SendScreen(vm: SendViewModel, sidetone: Sidetone, onBack: () -> Unit) {
             TextButton(onClick = onBack) { Text("Done") }
         }
 
-        if (s.mode == SendMode.FREE) FreeOutput(s, onClear = vm::clear) else EchoOutput(s, onReplay = vm::replayEcho, onSkip = vm::skipEcho)
-
+        Column(
+            Modifier.weight(1f).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (s.mode == SendMode.FREE) {
+                FreeOutput(s, onClear = vm::clear)
+            } else {
+                EchoOptions(s, onLevel = vm::setEchoLevel, onAuto = vm::setEchoAuto, onAllChars = vm::setEchoAllChars)
+                EchoOutput(s, onReplay = vm::replayEcho, onSkip = vm::skipEcho)
+            }
+            Timeline(s.recent, s.ditMs)
+            FistCard(s.fist, s.fistBest, s.estWpm, showBest = s.mode == SendMode.FREE)
+        }
         Spacer(Modifier.height(8.dp))
-        Timeline(s.recent, s.ditMs)
-        Spacer(Modifier.height(8.dp))
-        FistCard(s.fist, s.estWpm)
-
-        Spacer(Modifier.weight(1f))
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             FilterChip(s.keyType == KeyType.STRAIGHT, onClick = { vm.setKeyType(KeyType.STRAIGHT) }, label = { Text("Straight key") })
@@ -280,27 +292,96 @@ private fun Timeline(intervals: List<KeyInterval>, ditMs: Double) {
 }
 
 @Composable
-private fun FistCard(f: FistReport?, estWpm: Double) {
+private fun FistCard(f: FistReport?, best: Int?, estWpm: Double, showBest: Boolean) {
     Card(Modifier.fillMaxWidth()) {
-        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.width(90.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(f?.score?.toString() ?: "–", fontSize = 34.sp, fontWeight = FontWeight.Bold)
-                Text("rhythm score", style = MaterialTheme.typography.labelSmall, textAlign = TextAlign.Center)
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.width(96.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(f?.score?.toString() ?: "–", fontSize = 34.sp, fontWeight = FontWeight.Bold)
+                    Text("rhythm", style = MaterialTheme.typography.labelSmall)
+                    Text("last few letters", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (f == null) {
+                        Text("Send a few letters to get a score.", style = MaterialTheme.typography.bodySmall)
+                    }
+                    f?.parts?.forEach { p -> Part(p.name, p.score, p.reading) }
+                }
             }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Metric("Speed", if (estWpm > 0) "%.0f WPM".format(estWpm) else "–")
-                Metric("Dah : dit", f?.dahDitRatio?.let { "%.1f (ideal 3)".format(it) } ?: "–")
-                Metric("Gap inside letters", f?.elementGapRatio?.let { "%.1f (ideal 1)".format(it) } ?: "–")
-                Metric("Gap between letters", f?.charGapRatio?.let { "%.1f (ideal 3)".format(it) } ?: "–")
+            if (f != null) {
+                Text(f.tip, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+            }
+            Row {
+                Text(
+                    if (estWpm > 0) "Your speed: %.0f WPM".format(estWpm) else "",
+                    style = MaterialTheme.typography.labelMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                if (showBest && best != null) Text("Best this session: $best", style = MaterialTheme.typography.labelMedium)
             }
         }
     }
 }
 
 @Composable
-private fun Metric(label: String, value: String) {
-    Row {
-        Text(label, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
-        Text(value, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
+private fun Part(name: String, score: Int, reading: String) {
+    Column {
+        Row {
+            Text(name, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+            Text(reading, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        LinearProgressIndicator(
+            progress = { score / 100f },
+            modifier = Modifier.fillMaxWidth().height(6.dp),
+            color = if (score >= 80) CorrectGreen else if (score >= 50) Amber else WrongRed,
+            trackColor = MaterialTheme.colorScheme.surface,
+            drawStopIndicator = {},
+        )
+    }
+}
+
+/** Echo level choices: tap a level, or let the app move you up and down. */
+@Composable
+private fun EchoOptions(
+    s: SendUiState,
+    onLevel: (EchoLevel) -> Unit,
+    onAuto: (Boolean) -> Unit,
+    onAllChars: (Boolean) -> Unit,
+) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                s.echoLevels.forEach { (level, available) ->
+                    FilterChip(
+                        selected = s.echoLevel == level,
+                        enabled = available,
+                        onClick = { onLevel(level) },
+                        label = { Text(level.label) },
+                    )
+                }
+            }
+            Text(
+                s.echoLevel.description +
+                    if (s.echoRecentCount > 0) " · ${s.echoRecentCorrect} of last ${s.echoRecentCount} right" else "",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Level up automatically", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                Switch(checked = s.echoAuto, onCheckedChange = onAuto)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Use all characters", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        if (s.echoAllChars) "Every letter, number and sign" else "Only your Koch characters (${s.learned.length})",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(checked = s.echoAllChars, onCheckedChange = onAllChars)
+            }
+            s.echoNotice?.let { Text(it, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = CorrectGreen) }
+        }
     }
 }

@@ -50,6 +50,15 @@ import com.robomorse.app.data.SessionEntity
 import com.robomorse.app.data.Settings
 import com.robomorse.app.data.toLocalDate
 import com.robomorse.core.Curriculum
+import com.robomorse.core.MorseCode
+import com.robomorse.core.MorseTiming
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
+import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.runtime.DisposableEffect
 import com.robomorse.core.ItemStats
 import com.robomorse.core.LearnerModel
 import com.robomorse.core.MasteryTier
@@ -76,6 +85,35 @@ class StatsViewModel(private val c: AppContainer) : ViewModel() {
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), StatsState())
 
     suspend fun history(ch: Char): List<CharSessionPoint> = c.repository.charHistory(ch)
+
+    private val _repeating = MutableStateFlow(false)
+    val repeating: StateFlow<Boolean> = _repeating
+    private var playJob: Job? = null
+
+    /** Plays [ch] once, or over and over (with a word space between) when [repeat] is set. */
+    fun play(ch: Char, repeat: Boolean) {
+        playJob?.cancel()
+        _repeating.value = repeat
+        playJob = viewModelScope.launch {
+            try {
+                val s = c.settings.current()
+                val timing = MorseTiming(s.charWpm.toDouble(), s.effWpm.toDouble())
+                do {
+                    c.player.play(ch.toString(), timing, s.pitchHz, s.volume)
+                    if (repeat) delay(timing.wordGapMs.toLong().coerceAtLeast(500))
+                } while (repeat)
+            } finally {
+                _repeating.value = false
+            }
+        }
+    }
+
+    fun stop() {
+        playJob?.cancel()
+        c.player.stop()
+    }
+
+    override fun onCleared() = stop()
 }
 
 @Composable
@@ -269,12 +307,37 @@ fun CharacterDetailScreen(vm: StatsViewModel, ch: Char, onBack: () -> Unit) {
         Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
+        val repeating by vm.repeating.collectAsStateWithLifecycle()
+        DisposableEffect(ch) { onDispose { vm.stop() } }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(ch.toString(), fontSize = 48.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
             TextButton(onClick = onBack) { Text("Back") }
         }
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                PatternView(ch)
+                Text(
+                    spoken(ch),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Button(onClick = { vm.play(ch, repeat = false) }) { Text("▶  Play") }
+                    if (repeating) {
+                        OutlinedButton(onClick = vm::stop) { Text("■  Stop") }
+                    } else {
+                        OutlinedButton(onClick = { vm.play(ch, repeat = true) }) { Text("↻  Repeat") }
+                    }
+                }
+                Text(
+                    "For reference. In lessons, keep listening for the whole sound rather than picturing the dots and dashes.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
         if (st == null) {
-            Text("No practice yet.")
+            Text("Not practiced yet.", style = MaterialTheme.typography.bodyMedium)
             return@Column
         }
         val m = LearnerModel.mastery(st, scale)
@@ -329,4 +392,35 @@ fun CharacterDetailScreen(vm: StatsViewModel, ch: Char, onBack: () -> Unit) {
             }
         }
     }
+}
+
+/** The character's elements drawn to scale: a dit is a dot, a dah three times as long. */
+@Composable
+private fun PatternView(ch: Char) {
+    val pattern = MorseCode.patternOf(ch) ?: return
+    val color = MaterialTheme.colorScheme.primary
+    val units = pattern.sumOf { if (it == '.') 1 else 3 } + (pattern.length - 1)
+    Canvas(Modifier.fillMaxWidth().height(36.dp)) {
+        val unit = (size.width / units).coerceAtMost(size.height * 1.2f)
+        val h = (unit * 0.9f).coerceAtMost(size.height)
+        val y = (size.height - h) / 2
+        var x = 0f
+        pattern.forEach { el ->
+            val w = if (el == '.') h else unit * 3
+            drawRoundRect(color, topLeft = Offset(x, y), size = androidx.compose.ui.geometry.Size(w, h), cornerRadius = androidx.compose.ui.geometry.CornerRadius(h / 2, h / 2))
+            x += (if (el == '.') unit else unit * 3) + unit
+        }
+    }
+}
+
+/** How operators say a character: "di" inside, "dit" at the end, "dah" for dashes. */
+private fun spoken(ch: Char): String {
+    val p = MorseCode.patternOf(ch) ?: return ""
+    return p.mapIndexed { i, el ->
+        when {
+            el == '-' -> "dah"
+            i == p.lastIndex -> "dit"
+            else -> "di"
+        }
+    }.joinToString(" ")
 }

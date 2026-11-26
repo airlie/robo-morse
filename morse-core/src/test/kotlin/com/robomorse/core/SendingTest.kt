@@ -76,6 +76,50 @@ class SendingTest {
     }
 
     @Test
+    fun beginnerScoresInTheMiddleAndImprovementShows() {
+        fun score(dahRatio: Double, jitter: Double) = SendDecoder(12.0).let {
+            val rnd = kotlin.random.Random(7)
+            send(it, "KM KM MK KM", dit = 100.0, dahRatio = dahRatio, charGap = 4.0, jitter = { rnd.nextDouble(-jitter, jitter) })
+            assertNotNull(FistAnalyzer.analyze(it.intervals))
+        }
+        val beginner = score(dahRatio = 2.2, jitter = 0.15)
+        val better = score(dahRatio = 2.6, jitter = 0.10)
+        val good = score(dahRatio = 2.9, jitter = 0.04)
+        assertTrue(beginner.score in 35..80, "beginner=${beginner.score}")
+        assertTrue(better.score > beginner.score + 5, "beginner=${beginner.score} better=${better.score}")
+        assertTrue(good.score >= 85, "good=${good.score}")
+        assertTrue("dah" in beginner.tip.lowercase(), beginner.tip)
+    }
+
+    @Test
+    fun touchTimingNoiseIsNotPenalised() {
+        // ±7 ms of jitter at 20 WPM is what a touchscreen alone produces.
+        val d = SendDecoder(20.0)
+        send(d, "PARIS PARIS", dit = 60.0, jitter = { n -> if (n % 2 == 0) 7.0 / 60 else -7.0 / 60 })
+        val r = assertNotNull(FistAnalyzer.analyze(d.intervals))
+        assertTrue(r.score >= 90, "score=${r.score} parts=${r.parts}")
+    }
+
+    @Test
+    fun lettersBreakingApartIsCaught() {
+        // Every element followed by a letter-sized gap, so K and M decode as T E T and T T.
+        val spaced = SendDecoder(12.0).also { s ->
+            var t = 0L
+            repeat(12) { i ->
+                s.keyDown(t); t += if (i % 3 == 1) 100 else 300
+                s.keyUp(t); t += 400
+            }
+        }
+        val r = assertNotNull(FistAnalyzer.analyze(spaced.intervals))
+        assertTrue(r.score < 60, "score=${r.score}")
+        assertTrue("breaking apart" in r.tip, r.tip)
+
+        // The same letters sent properly are not flagged.
+        val good = SendDecoder(12.0).also { send(it, "KM KM KM", dit = 100.0) }
+        assertTrue(assertNotNull(FistAnalyzer.analyze(good.intervals)).score >= 90)
+    }
+
+    @Test
     fun tooLittleDataGivesNoReport() {
         assertNull(FistAnalyzer.analyze(listOf(KeyInterval(true, 60.0))))
     }

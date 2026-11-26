@@ -45,7 +45,7 @@ fun CharacterMap(
                             .aspectRatio(1f)
                             .clip(RoundedCornerShape(8.dp))
                             .background(tierColor(tier))
-                            .then(if (onClick != null && tier != null) Modifier.clickable { onClick(c) } else Modifier),
+                            .then(if (onClick != null) Modifier.clickable { onClick(c) } else Modifier),
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(c.toString(), color = onTierColor(tier), fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
