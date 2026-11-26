@@ -6,6 +6,7 @@ import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioTrack
 import kotlin.math.PI
+import kotlin.math.cos
 import kotlin.math.sin
 
 /**
@@ -65,33 +66,45 @@ class Sidetone(private val context: Context) {
             .setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
             .setBufferSizeInBytes(minBytes)
             .build()
-        // Keep only two bursts queued: the smallest buffer that plays without gaps on most devices.
+        // Start with two bursts queued, then grow one burst at a time whenever the
+        // track underruns (the latency-tuning approach Oboe uses). Each device ends
+        // up with the smallest buffer that plays without gaps.
         runCatching { track.setBufferSizeInFrames(burst * 2) }
         bufferMs = track.bufferSizeInFrames * 1000 / rate
+        var lastUnderruns = track.underrunCount
 
         val chunk = ShortArray(burst.coerceIn(32, 512))
-        val rampStep = 1.0 / (rate * 0.005)
-        var env = 0.0
+        // Same 5 ms raised-cosine edges as the receive tones in MorsePlayer.
+        val rampSamples = (rate * 0.005).toInt().coerceAtLeast(1)
+        var rampPos = 0 // 0 = silent, rampSamples = full volume
         var phase = 0.0
         track.play()
         try {
             while (running) {
-                val target = if (keyed) 1.0 else 0.0
+                val on = keyed
                 val step = 2 * PI * pitchHz / rate
                 val amp = Short.MAX_VALUE * volume.coerceIn(0f, 1f) * 0.8
                 for (i in chunk.indices) {
-                    env = when {
-                        env < target -> (env + rampStep).coerceAtMost(target)
-                        env > target -> (env - rampStep).coerceAtLeast(target)
-                        else -> env
-                    }
+                    if (on && rampPos < rampSamples) rampPos++ else if (!on && rampPos > 0) rampPos--
+                    val env = 0.5 * (1 - cos(PI * rampPos / rampSamples))
                     chunk[i] = (amp * env * sin(phase)).toInt().toShort()
                     phase += step
                     if (phase > 2 * PI) phase -= 2 * PI
                 }
                 track.write(chunk, 0, chunk.size) // blocks, which paces the loop
+                val underruns = track.underrunCount
+                if (underruns > lastUnderruns) {
+                    val bigger = track.bufferSizeInFrames + burst
+                    if (bigger <= track.bufferCapacityInFrames) {
+                        runCatching { track.setBufferSizeInFrames(bigger) }
+                        bufferMs = track.bufferSizeInFrames * 1000 / rate
+                        android.util.Log.d("Sidetone", "underrun: buffer now ${track.bufferSizeInFrames} frames (${bufferMs} ms)")
+                    }
+                    lastUnderruns = underruns
+                }
             }
         } finally {
+            android.util.Log.d("Sidetone", "stopped: ${track.underrunCount} underruns, buffer ${track.bufferSizeInFrames} frames")
             runCatching { track.stop() }
             track.release()
         }

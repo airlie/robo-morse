@@ -106,6 +106,7 @@ class SendViewModel(private val c: AppContainer, private val mode: SendMode, pri
                 text = decoder.text,
                 pattern = decoder.currentPattern,
                 estWpm = decoder.estimatedWpm,
+                sidetoneMs = sidetone.bufferMs,
                 ditMs = decoder.ditMs,
                 keyDown = decoder.isKeyDown,
                 recent = iv.takeLast(24),

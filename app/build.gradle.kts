@@ -16,8 +16,8 @@ android {
         applicationId = "com.robomorse.app"
         minSdk = 26
         targetSdk = 37
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.1.1"
     }
 
     // Release signing comes from the developer's own ~/.gradle/gradle.properties
