@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.robomorse.app.audio.Sidetone
 import com.robomorse.app.ui.CorrectGreen
+import com.robomorse.app.ui.MorsePattern
 import com.robomorse.app.ui.WrongRed
 import com.robomorse.core.FistReport
 import com.robomorse.core.EchoLevel
@@ -236,7 +237,10 @@ private fun EchoOutput(s: SendUiState, onReplay: () -> Unit, onSkip: () -> Unit)
                             style = MaterialTheme.typography.headlineSmall,
                             color = if (r.correct) CorrectGreen else WrongRed,
                         )
-                        Text("It was: ${r.target}   You sent: ${r.sent}", fontFamily = FontFamily.Monospace, fontSize = 20.sp)
+                        Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                            EchoAnswer("It was", r.target, if (!r.correct && s.showPatterns) r.target else null)
+                            EchoAnswer("You sent", r.sent, if (!r.correct && s.showPatterns) r.sent else null)
+                        }
                         r.fist?.let { Text("Rhythm score ${it.score}", style = MaterialTheme.typography.bodyMedium) }
                     }
                 }
@@ -382,6 +386,23 @@ private fun EchoOptions(
                 Switch(checked = s.echoAllChars, onCheckedChange = onAllChars)
             }
             s.echoNotice?.let { Text(it, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = CorrectGreen) }
+        }
+    }
+}
+
+/** One side of an Echo result, with an optional faint pattern underneath. */
+@Composable
+private fun EchoAnswer(label: String, text: String, pattern: String?) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(text.ifEmpty { "–" }, fontFamily = FontFamily.Monospace, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        if (pattern != null) {
+            MorsePattern(
+                pattern,
+                unit = 4.dp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                modifier = Modifier.padding(top = 4.dp),
+            )
         }
     }
 }

@@ -52,6 +52,7 @@ data class PracticeUiState(
     val haptics: Boolean = true,
     val charWpm: Int = 20,
     val effWpm: Int = 10,
+    val showPatterns: Boolean = true,
 ) {
     /** True only while a key press will be used as an answer. */
     val acceptingInput: Boolean get() = phase == Phase.ANSWERING && !paused
@@ -102,6 +103,7 @@ class PracticeViewModel(private val c: AppContainer, private val mode: PracticeM
                     haptics = settings.haptics,
                     charWpm = settings.charWpm,
                     effWpm = settings.effWpm,
+                    showPatterns = settings.showPatternOnMiss,
                 )
             }
         }

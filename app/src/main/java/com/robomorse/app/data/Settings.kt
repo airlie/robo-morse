@@ -41,6 +41,8 @@ data class Settings(
     val echoLevel: String = "LETTERS",
     val echoAuto: Boolean = true,
     val echoAllChars: Boolean = false,
+    /** Show a small, faint dot-dash pattern under characters you missed. */
+    val showPatternOnMiss: Boolean = true,
 )
 
 private val Context.dataStore by preferencesDataStore(name = "settings")
@@ -69,6 +71,7 @@ class SettingsRepository(private val context: Context) {
         val echoLevel = stringPreferencesKey("echoLevel")
         val echoAuto = booleanPreferencesKey("echoAuto")
         val echoAllChars = booleanPreferencesKey("echoAllChars")
+        val showPatternOnMiss = booleanPreferencesKey("showPatternOnMiss")
     }
 
     val settings: Flow<Settings> = context.dataStore.data.map { p -> p.toSettings() }
@@ -100,6 +103,7 @@ class SettingsRepository(private val context: Context) {
             echoLevel = this[K.echoLevel] ?: d.echoLevel,
             echoAuto = this[K.echoAuto] ?: d.echoAuto,
             echoAllChars = this[K.echoAllChars] ?: d.echoAllChars,
+            showPatternOnMiss = this[K.showPatternOnMiss] ?: d.showPatternOnMiss,
         )
     }
 
@@ -128,6 +132,7 @@ class SettingsRepository(private val context: Context) {
             p[K.echoLevel] = s.echoLevel
             p[K.echoAuto] = s.echoAuto
             p[K.echoAllChars] = s.echoAllChars
+            p[K.showPatternOnMiss] = s.showPatternOnMiss
         }
     }
 }

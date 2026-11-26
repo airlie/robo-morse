@@ -51,6 +51,7 @@ import com.robomorse.app.data.Settings
 import com.robomorse.app.data.toLocalDate
 import com.robomorse.core.Curriculum
 import com.robomorse.core.MorseCode
+import com.robomorse.app.ui.MorsePattern
 import com.robomorse.core.MorseTiming
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -100,7 +101,8 @@ class StatsViewModel(private val c: AppContainer) : ViewModel() {
                 val timing = MorseTiming(s.charWpm.toDouble(), s.effWpm.toDouble())
                 do {
                     c.player.play(ch.toString(), timing, s.pitchHz, s.volume)
-                    if (repeat) delay(timing.wordGapMs.toLong().coerceAtLeast(500))
+                    // About the normal gap between letters: clearly separate, but not a long wait.
+                    if (repeat) delay(timing.charGapMs.toLong().coerceIn(350, 900))
                 } while (repeat)
             } finally {
                 _repeating.value = false
@@ -315,7 +317,7 @@ fun CharacterDetailScreen(vm: StatsViewModel, ch: Char, onBack: () -> Unit) {
         }
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                PatternView(ch)
+                MorsePattern(ch.toString(), unit = 14.dp, color = MaterialTheme.colorScheme.primary)
                 Text(
                     spoken(ch),
                     style = MaterialTheme.typography.titleMedium,
@@ -329,11 +331,6 @@ fun CharacterDetailScreen(vm: StatsViewModel, ch: Char, onBack: () -> Unit) {
                         OutlinedButton(onClick = { vm.play(ch, repeat = true) }) { Text("↻  Repeat") }
                     }
                 }
-                Text(
-                    "For reference. In lessons, keep listening for the whole sound rather than picturing the dots and dashes.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
             }
         }
         if (st == null) {
@@ -390,25 +387,6 @@ fun CharacterDetailScreen(vm: StatsViewModel, ch: Char, onBack: () -> Unit) {
                     }
                 }
             }
-        }
-    }
-}
-
-/** The character's elements drawn to scale: a dit is a dot, a dah three times as long. */
-@Composable
-private fun PatternView(ch: Char) {
-    val pattern = MorseCode.patternOf(ch) ?: return
-    val color = MaterialTheme.colorScheme.primary
-    val units = pattern.sumOf { if (it == '.') 1 else 3 } + (pattern.length - 1)
-    Canvas(Modifier.fillMaxWidth().height(36.dp)) {
-        val unit = (size.width / units).coerceAtMost(size.height * 1.2f)
-        val h = (unit * 0.9f).coerceAtMost(size.height)
-        val y = (size.height - h) / 2
-        var x = 0f
-        pattern.forEach { el ->
-            val w = if (el == '.') h else unit * 3
-            drawRoundRect(color, topLeft = Offset(x, y), size = androidx.compose.ui.geometry.Size(w, h), cornerRadius = androidx.compose.ui.geometry.CornerRadius(h / 2, h / 2))
-            x += (if (el == '.') unit else unit * 3) + unit
         }
     }
 }

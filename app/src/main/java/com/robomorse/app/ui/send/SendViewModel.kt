@@ -62,6 +62,7 @@ data class SendUiState(
     val echoRecentCount: Int = 0,
     /** Best rhythm score this session, over at least 8 marks. */
     val fistBest: Int? = null,
+    val showPatterns: Boolean = true,
 )
 
 class SendViewModel(private val c: AppContainer, private val mode: SendMode, private val sidetone: Sidetone) : ViewModel() {
@@ -92,6 +93,7 @@ class SendViewModel(private val c: AppContainer, private val mode: SendMode, pri
             _state.update {
                 it.copy(
                     paddleWpm = settings.charWpm,
+                    showPatterns = settings.showPatternOnMiss,
                     ditMs = decoder.ditMs,
                     learned = Curriculum.learned(settings.kochOrder, settings.learnedCount).joinToString(""),
                 )

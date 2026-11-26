@@ -49,6 +49,7 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.robomorse.app.ui.BACKSPACE
 import com.robomorse.app.ui.CorrectGreen
+import com.robomorse.app.ui.MorsePattern
 import com.robomorse.app.ui.MorseKeyboard
 import com.robomorse.app.ui.WrongRed
 import com.robomorse.core.PracticeMode
@@ -293,6 +294,15 @@ private fun AnswerArea(s: PracticeUiState, onReplay: () -> Unit, onSkip: () -> U
                             style = MaterialTheme.typography.labelMedium,
                             color = if (r.correct) MaterialTheme.colorScheme.onSurfaceVariant else WrongRed,
                         )
+                        if (!r.correct && s.showPatterns) {
+                            // A quiet hint for when the sound itself isn't clicking yet.
+                            MorsePattern(
+                                r.expected.toString(),
+                                unit = 4.dp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                modifier = Modifier.padding(top = 4.dp),
+                            )
+                        }
                     }
                 }
             }

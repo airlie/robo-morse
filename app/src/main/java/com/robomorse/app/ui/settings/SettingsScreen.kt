@@ -154,6 +154,7 @@ fun SettingsScreen(c: AppContainer, onBack: () -> Unit) {
         Section("Answering")
         ToggleRow("Hard mode (every key active)", s.hardMode) { on -> update { it.copy(hardMode = on) } }
         ToggleRow("Key vibration", s.haptics) { on -> update { it.copy(haptics = on) } }
+        ToggleRow("Show the pattern of missed characters", s.showPatternOnMiss) { on -> update { it.copy(showPatternOnMiss = on) } }
 
         HorizontalDivider()
         Section("Progress")
