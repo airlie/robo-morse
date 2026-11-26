@@ -105,3 +105,7 @@ Method and order of characters follow the Koch method as used by
 [Long Island CW Club](https://longislandcwclub.org) and
 [CW Academy](https://cwops.org/cw-academy/). Research references are listed in
 [PLAN.md](PLAN.md#15-references). This project is not affiliated with any of them.
+
+## License
+
+[MIT](LICENSE)
