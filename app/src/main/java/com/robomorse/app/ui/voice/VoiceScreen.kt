@@ -29,10 +29,12 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -67,6 +69,13 @@ fun VoiceScreen(vm: VoiceViewModel, onBack: () -> Unit) {
     }
     BackHandler { vm.finish(onBack) }
     LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) { vm.pause("Paused while the app was in the background.") }
+    // Practice is hands-free, so keep the screen on while it runs (not while paused).
+    val view = LocalView.current
+    val active = !s.paused && s.phase in setOf(VoicePhase.LISTEN, VoicePhase.SPEAK, VoicePhase.RESULT)
+    DisposableEffect(active) {
+        view.keepScreenOn = active
+        onDispose { view.keepScreenOn = false }
+    }
 
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         DrillTopBar(

@@ -14,6 +14,8 @@ class AppContainer(app: Application) {
     val player = MorsePlayer()
     val sidetone = com.robomorse.app.audio.Sidetone(app)
     val voice = com.robomorse.app.audio.VoiceListener(app)
+    /** Text-to-speech, started on first use. */
+    val speaker by lazy { com.robomorse.app.audio.Speaker(app) }
 
     /** Hand-off from the practice screen to the summary screen. */
     var lastResult: PracticeResult? = null

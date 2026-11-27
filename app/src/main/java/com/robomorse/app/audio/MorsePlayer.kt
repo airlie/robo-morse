@@ -68,24 +68,7 @@ class MorsePlayer {
     ): Playback = withContext(Dispatchers.Default) {
         val rendered = MorseRenderer.render(text, timing)
         val pcm = synthesize(rendered, pitchHz, volume)
-        val track = AudioTrack.Builder()
-            .setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_GAME)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .build(),
-            )
-            .setAudioFormat(
-                AudioFormat.Builder()
-                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                    .setSampleRate(sampleRate)
-                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                    .build(),
-            )
-            .setTransferMode(AudioTrack.MODE_STATIC)
-            .setBufferSizeInBytes(pcm.size * 2)
-            .setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
-            .build()
+        val track = newTrack(pcm.size)
         current?.let { runCatching { it.stop() } }
         current = track
         try {
@@ -107,6 +90,62 @@ class MorsePlayer {
             if (current === track) current = null
         }
     }
+
+    /**
+     * A short sound for a right answer (two quick rising notes) or a wrong one (two low
+     * falling notes), pitched well away from the Morse tone so it isn't mistaken for it.
+     */
+    suspend fun cue(right: Boolean, volume: Float) = withContext(Dispatchers.Default) {
+        val notes = if (right) listOf(988 to 70, 1319 to 110) else listOf(330 to 130, 220 to 200)
+        val amp = Short.MAX_VALUE * volume.coerceIn(0f, 1f) * 0.6f
+        val ramp = (rampMs * sampleRate / 1000).roundToInt()
+        val gap = sampleRate * 25 / 1000
+        val pcm = ShortArray(notes.sumOf { (_, ms) -> ms * sampleRate / 1000 + gap } + sampleRate / 20)
+        var pos = 0
+        for ((hz, ms) in notes) {
+            val n = ms * sampleRate / 1000
+            for (i in 0 until n) {
+                val env = when {
+                    i < ramp -> 0.5 * (1 - cos(PI * i / ramp))
+                    i >= n - ramp -> 0.5 * (1 - cos(PI * (n - i) / ramp))
+                    else -> 1.0
+                }
+                pcm[pos + i] = (amp * env * sin(2 * PI * hz * i / sampleRate)).toInt().toShort()
+            }
+            pos += n + gap
+        }
+        val track = newTrack(pcm.size)
+        current?.let { runCatching { it.stop() } }
+        current = track
+        try {
+            track.write(pcm, 0, pcm.size)
+            track.play()
+            delay(pcm.size * 1000L / sampleRate + 30)
+        } finally {
+            runCatching { track.stop() }
+            track.release()
+            if (current === track) current = null
+        }
+    }
+
+    private fun newTrack(samples: Int): AudioTrack = AudioTrack.Builder()
+        .setAudioAttributes(
+            AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_GAME)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build(),
+        )
+        .setAudioFormat(
+            AudioFormat.Builder()
+                .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                .setSampleRate(sampleRate)
+                .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                .build(),
+        )
+        .setTransferMode(AudioTrack.MODE_STATIC)
+        .setBufferSizeInBytes(samples * 2)
+        .setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
+        .build()
 
     fun stop() {
         current?.let { runCatching { it.pause(); it.flush() } }

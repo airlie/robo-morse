@@ -51,8 +51,10 @@ See [PLAN.md](PLAN.md) for the full design, including the evidence behind each c
   look-alike choices (for example HAS, HAD, HIS, WAS). Levels run from short words to
   contact phrases.
 - **Say it:** hear a character, group or word and say it out loud, as a phonetic word
-  ("Kilo") or letter name, using Android's speech recognizer. Untimed; the answer is shown
-  with each character's phonetic word and pattern. Needs microphone permission; on Android
+  ("Kilo") or letter name, using Android's speech recognizer. Untimed and hands-free: a
+  short sound tells you right or wrong, a miss is spelled out ("Kilo", then K's sound),
+  and the screen stays on while you practice. The answer is also shown with each
+  character's phonetic word and pattern. Needs microphone permission; on Android
   12+ recognition runs on the phone where supported, otherwise through the system speech
   service.
 

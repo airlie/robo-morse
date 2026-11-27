@@ -6,10 +6,13 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
-    <!-- Lets the app find the speech recognizer on Android 11 and up. -->
+    <!-- Lets the app find the speech recognizer and text-to-speech on Android 11 and up. -->
     <queries>
         <intent>
             <action android:name="android.speech.RecognitionService" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
         </intent>
     </queries>
 

@@ -138,6 +138,7 @@ class VoiceViewModel(private val c: AppContainer) : ViewModel() {
     fun start() {
         if (_state.value.phase != VoicePhase.READY) return
         _state.update { it.copy(notice = null) }
+        c.speaker // start text-to-speech now, so it is ready for the first miss
         clock.start()
         clockJob = viewModelScope.launch {
             while (true) {
@@ -246,14 +247,13 @@ class VoiceViewModel(private val c: AppContainer) : ViewModel() {
             )
         }
         if (change != null) saveSettings()
+        c.player.cue(correct, settings.volume)
         if (correct) {
-            delay(1400)
+            delay(600)
         } else {
-            delay(700)
-            _state.update { it.copy(reviewing = true) }
-            play(target)
-            _state.update { it.copy(reviewing = false) }
-            delay(2000)
+            delay(200)
+            review(target)
+            delay(900)
         }
         nextItem()
     }
@@ -261,12 +261,33 @@ class VoiceViewModel(private val c: AppContainer) : ViewModel() {
     /** Shows the answer without scoring it: recognition trouble isn't your miss. */
     private suspend fun reveal() {
         _state.update { it.copy(phase = VoicePhase.RESULT, outcome = VoiceOutcome.SHOWN, hint = null) }
-        delay(500)
-        _state.update { it.copy(reviewing = true) }
-        play(_state.value.target)
-        _state.update { it.copy(reviewing = false) }
-        delay(2500)
+        delay(400)
+        review(_state.value.target)
+        delay(900)
         nextItem()
+    }
+
+    /**
+     * Plays the answer one character at a time, saying each one first ("Kilo", then K), so
+     * it can be followed without looking. A character repeated straight after itself
+     * isn't said again. Without text-to-speech it just plays the answer.
+     */
+    private suspend fun review(target: String) {
+        _state.update { it.copy(reviewing = true) }
+        try {
+            var prev: Char? = null
+            for ((i, ch) in target.withIndex()) {
+                if (ch == ' ') continue
+                if (ch != prev && !c.speaker.say(VoiceAnswers.phonetic[ch] ?: ch.toString())) {
+                    play(target.substring(i))
+                    return
+                }
+                play(ch.toString())
+                prev = ch
+            }
+        } finally {
+            _state.update { it.copy(reviewing = false) }
+        }
     }
 
     /** Hear it again and answer afresh. */
@@ -292,6 +313,7 @@ class VoiceViewModel(private val c: AppContainer) : ViewModel() {
     private fun stopTurn() {
         loopJob?.cancel()
         c.player.stop()
+        c.speaker.stop()
         c.voice.stop()
     }
 
@@ -333,5 +355,6 @@ class VoiceViewModel(private val c: AppContainer) : ViewModel() {
 
     override fun onCleared() {
         c.voice.release()
+        c.speaker.stop()
     }
 }
