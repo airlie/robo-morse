@@ -65,27 +65,17 @@ class Repository(private val dao: MorseDao, val settings: SettingsRepository) {
         dao.recentAttempts(limit).map { it.expected.first() to it.answered?.firstOrNull() }
 
     /**
-     * All practice data as JSON, for the learner to share with a developer if they
-     * choose to: settings (without their callsign), character stats, mix-ups, sessions
-     * and every answer.
+     * All practice data as JSON: a backup the learner can restore with [importJson], or
+     * share with a developer if they choose to. Settings (all but the callsign),
+     * character stats, mix-ups, sessions and every answer.
      */
     suspend fun exportJson(appVersion: String): String {
-        val s = settings.current()
         val root = JSONObject()
-        root.put("format", "robo-morse-export-1")
+        root.put("format", EXPORT_FORMAT)
         root.put("appVersion", appVersion)
         root.put("exportedAt", System.currentTimeMillis())
         root.put("timeZone", ZoneId.systemDefault().id)
-        root.put(
-            "settings",
-            JSONObject()
-                .put("charWpm", s.charWpm).put("effWpm", s.effWpm).put("pitchHz", s.pitchHz)
-                .put("learnedCount", s.learnedCount).put("kochOrder", s.kochOrder)
-                .put("dailyGoalMinutes", s.dailyGoalMinutes).put("hardMode", s.hardMode)
-                .put("replayMissed", s.replayMissed).put("groupGapMs", s.groupGapMs)
-                .put("breatherEvery", s.breatherEvery).put("kochGroupLength", s.kochGroupLength)
-                .put("answerSounds", s.answerSounds),
-        )
+        root.put("preferences", settings.exportPreferences())
         root.put(
             "stats",
             JSONArray(
@@ -210,6 +200,82 @@ class Repository(private val dao: MorseDao, val settings: SettingsRepository) {
         )
     }
 
+    /** What a backup file holds, read before restoring it, or why it can't be used. */
+    data class BackupInfo(
+        val sessions: Int,
+        val answers: Int,
+        val learnedCount: Int?,
+        val exportedAt: Long?,
+        val appVersion: String?,
+        val error: String? = null,
+    )
+
+    fun inspectBackup(text: String): BackupInfo = runCatching {
+        val root = JSONObject(text)
+        val format = root.optString("format")
+        if (format !in IMPORT_FORMATS) {
+            return BackupInfo(0, 0, null, null, null, "This isn't a Robo Morse data file.")
+        }
+        val prefs = root.optJSONObject("preferences") ?: root.optJSONObject("settings")
+        val learned = prefs?.opt("learnedCount")?.let { if (it is JSONObject) it.optInt("v") else (it as? Number)?.toInt() }
+        BackupInfo(
+            sessions = root.optJSONArray("sessions")?.length() ?: 0,
+            answers = root.optJSONArray("attempts")?.length() ?: 0,
+            learnedCount = learned,
+            exportedAt = root.optLong("exportedAt").takeIf { it > 0 },
+            appVersion = root.optString("appVersion").takeIf { it.isNotBlank() },
+        )
+    }.getOrElse { BackupInfo(0, 0, null, null, null, "This file couldn't be read as a Robo Morse data file.") }
+
+    /**
+     * Replaces all progress and settings (except this phone's callsign) with the
+     * contents of a file from [exportJson]. Throws if the file is unusable; nothing is
+     * changed in that case.
+     */
+    suspend fun importJson(text: String) {
+        val root = JSONObject(text)
+        require(root.optString("format") in IMPORT_FORMATS) { "Not a Robo Morse data file" }
+        fun JSONObject.optNullableDouble(k: String) = if (isNull(k)) null else optDouble(k)
+        val stats = root.optJSONArray("stats").objects().map {
+            ItemStatsEntity(
+                symbol = it.getString("symbol"), acc = it.getDouble("acc"), rtMs = it.optNullableDouble("rtMs"),
+                bestRtMs = it.optNullableDouble("bestRtMs"), attempts = it.getInt("attempts"), correct = it.getInt("correct"),
+                srsStabilityDays = it.optDouble("srsStabilityDays", 0.0), srsDueMs = it.optLong("srsDueMs", 0L),
+            )
+        }
+        val confusions = root.optJSONArray("confusions").objects().map {
+            ConfusionEntity(it.getString("sent"), it.getString("typed"), it.getInt("count"))
+        }
+        val sessions = root.optJSONArray("sessions").objects().map {
+            SessionEntity(
+                id = it.getLong("id"), mode = it.getString("mode"), startedAt = it.getLong("startedAt"),
+                endedAt = it.getLong("endedAt"), charWpm = it.getInt("charWpm"), effWpm = it.getInt("effWpm"),
+                attempts = it.getInt("attempts"), correct = it.getInt("correct"),
+                learnedCount = it.getInt("learnedCount"), unlocked = it.optString("unlocked"),
+            )
+        }
+        val rows = root.optJSONArray("attempts") ?: JSONArray()
+        val attempts = (0 until rows.length()).map { i ->
+            val r = rows.getJSONArray(i)
+            AttemptEntity(
+                sessionId = r.getLong(0), expected = r.getString(1),
+                answered = if (r.isNull(2)) null else r.getString(2), correct = r.getBoolean(3),
+                rtMs = if (r.isNull(4)) null else r.getDouble(4), timestamp = r.getLong(5), inputMethod = r.optString(6, "touch"),
+            )
+        }
+        val prefs = root.optJSONObject("preferences")
+        val oldSettings = root.optJSONObject("settings") // first format: a few settings only
+        // Everything is parsed before anything is changed.
+        dao.replaceAll(sessions, attempts, stats, confusions)
+        when {
+            prefs != null -> settings.importPreferences(prefs)
+            oldSettings != null -> settings.importPreferences(oldSettings, replace = false)
+        }
+    }
+
+    private fun JSONArray?.objects(): List<JSONObject> =
+        if (this == null) emptyList() else (0 until length()).map { getJSONObject(it) }
+
     suspend fun resetProgress() {
         dao.clearAll()
         settings.update {
@@ -237,3 +303,7 @@ fun minutesByDay(sessions: List<SessionEntity>): Map<LocalDate, Double> =
 /** Days that count toward the streak: at least two minutes of practice. */
 fun practiceDays(sessions: List<SessionEntity>): Set<LocalDate> =
     minutesByDay(sessions).filterValues { it >= 2.0 }.keys
+
+/** The data file format written now, and the ones that can be restored. */
+const val EXPORT_FORMAT = "robo-morse-export-2"
+val IMPORT_FORMATS = setOf("robo-morse-export-1", EXPORT_FORMAT)

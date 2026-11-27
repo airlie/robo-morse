@@ -19,6 +19,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -26,6 +28,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
+import com.robomorse.app.R
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
@@ -248,8 +252,12 @@ private fun Header(onStats: () -> Unit, onSettings: () -> Unit) {
             // "RM" in Morse, as a quiet signature under the name.
             MorsePattern("RM", unit = 4.dp, color = MaterialTheme.colorScheme.secondary, modifier = Modifier.padding(top = 4.dp))
         }
-        TextButton(onClick = onStats) { Text("Stats") }
-        TextButton(onClick = onSettings) { Text("Settings") }
+        IconButton(onClick = onStats) {
+            Icon(painterResource(R.drawable.ic_stats), contentDescription = "Stats", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(28.dp))
+        }
+        IconButton(onClick = onSettings) {
+            Icon(painterResource(R.drawable.ic_settings), contentDescription = "Settings", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(28.dp))
+        }
     }
 }
 

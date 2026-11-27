@@ -37,11 +37,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.robomorse.app.AppContainer
+import com.robomorse.app.data.Repository
 import com.robomorse.app.data.Settings
 import com.robomorse.app.data.practiceDataShareIntent
 import com.robomorse.app.reminder.Reminders
 import com.robomorse.core.MorseTiming
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 
 @Composable
@@ -50,6 +53,27 @@ fun SettingsScreen(c: AppContainer, onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     var confirmReset by remember { mutableStateOf(false) }
+    // Restoring a backup: the file's text and what it holds, then a confirmation.
+    var restoreText by remember { mutableStateOf<String?>(null) }
+    var restoreInfo by remember { mutableStateOf<Repository.BackupInfo?>(null) }
+    var restoreMessage by remember { mutableStateOf<String?>(null) }
+    val version = remember {
+        runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull() ?: "?"
+    }
+    val openFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val text = withContext(Dispatchers.IO) {
+                runCatching { context.contentResolver.openInputStream(uri)?.use { it.readBytes().decodeToString() } }.getOrNull()
+            }
+            if (text == null) {
+                restoreMessage = "That file couldn't be opened."
+            } else {
+                restoreText = text
+                restoreInfo = c.repository.inspectBackup(text)
+            }
+        }
+    }
     fun update(f: (Settings) -> Settings) = scope.launch { c.settings.update(f) }
     fun reschedule(next: Settings) = Reminders.schedule(context, next.reminderEnabled, next.reminderHour, next.reminderMinute)
 
@@ -65,7 +89,14 @@ fun SettingsScreen(c: AppContainer, onBack: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Settings", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
+            Column(Modifier.weight(1f)) {
+                Text("Settings", style = MaterialTheme.typography.headlineMedium)
+                Text(
+                    "Robo Morse $version",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             TextButton(onClick = onBack) { Text("Back") }
         }
 
@@ -173,15 +204,64 @@ fun SettingsScreen(c: AppContainer, onBack: () -> Unit) {
 
         HorizontalDivider()
         Section("Progress")
-        OutlinedButton(onClick = {
-            scope.launch { context.startActivity(practiceDataShareIntent(context, c.repository)) }
-        }) { Text("Share practice data") }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = {
+                scope.launch { context.startActivity(practiceDataShareIntent(context, c.repository)) }
+            }) { Text("Back up or share") }
+            OutlinedButton(onClick = { openFile.launch(arrayOf("application/json", "application/octet-stream", "text/plain")) }) {
+                Text("Restore")
+            }
+        }
         Text(
-            "Saves every session and answer to a file (no callsign or account details) and opens the share menu, " +
-                "so you can send it to the developer to help tune the app. Nothing is sent unless you choose where.",
+            "Back up or share saves all your progress and settings (except your callsign) to a file and opens the share " +
+                "menu: save it to Drive or email it to yourself, or send it to the developer to help tune the app. " +
+                "Nothing is sent unless you choose where. Restore loads such a file, for example on a new phone.",
             style = MaterialTheme.typography.bodySmall,
         )
+        restoreMessage?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary) }
         Button(onClick = { confirmReset = true }) { Text("Reset all progress") }
+    }
+
+    restoreInfo?.let { info ->
+        val text = restoreText
+        AlertDialog(
+            onDismissRequest = { restoreInfo = null; restoreText = null },
+            title = { Text(if (info.error != null) "Can't restore" else "Restore this file?") },
+            text = {
+                Text(
+                    info.error ?: buildString {
+                        append("${info.sessions} sessions and ${info.answers} answers")
+                        info.learnedCount?.let { append(", $it characters learned") }
+                        info.exportedAt?.let {
+                            append(", saved ")
+                            append(java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneId.systemDefault()).toLocalDate())
+                        }
+                        info.appVersion?.let { append(" by version $it") }
+                        append(".\n\nThis replaces all progress and settings on this phone, except your callsign. It can't be undone.")
+                    },
+                )
+            },
+            confirmButton = {
+                if (info.error == null && text != null) {
+                    TextButton(onClick = {
+                        restoreInfo = null
+                        restoreText = null
+                        scope.launch {
+                            restoreMessage = runCatching {
+                                c.repository.importJson(text)
+                                reschedule(c.settings.current())
+                                "Restored: ${info.sessions} sessions and ${info.answers} answers."
+                            }.getOrElse { "Restore failed, so nothing was changed. The file may be damaged." }
+                        }
+                    }) { Text("Replace everything") }
+                } else {
+                    TextButton(onClick = { restoreInfo = null; restoreText = null }) { Text("OK") }
+                }
+            },
+            dismissButton = {
+                if (info.error == null) TextButton(onClick = { restoreInfo = null; restoreText = null }) { Text("Cancel") }
+            },
+        )
     }
 
     if (confirmReset) {

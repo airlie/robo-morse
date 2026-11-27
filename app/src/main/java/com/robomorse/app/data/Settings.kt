@@ -13,6 +13,7 @@ import com.robomorse.core.Curriculum
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import org.json.JSONObject
 
 data class Settings(
     val onboarded: Boolean = false,
@@ -108,6 +109,49 @@ class SettingsRepository(private val context: Context) {
     val settings: Flow<Settings> = context.dataStore.data.map { p -> p.toSettings() }
 
     suspend fun current(): Settings = settings.first()
+
+    /**
+     * Every stored preference except the callsign, as {name: {"t": type, "v": value}},
+     * so a backup carries settings this file adds later without changes here.
+     */
+    suspend fun exportPreferences(): JSONObject {
+        val out = JSONObject()
+        context.dataStore.data.first().asMap().forEach { (key, value) ->
+            if (key.name == K.myCall.name) return@forEach
+            val type = when (value) {
+                is Boolean -> "b"; is Int -> "i"; is Long -> "l"; is Float -> "f"; is String -> "s"
+                else -> return@forEach
+            }
+            out.put(key.name, JSONObject().put("t", type).put("v", value))
+        }
+        return out
+    }
+
+    /**
+     * Replaces all preferences with [prefs] (from [exportPreferences]), keeping this
+     * phone's callsign; with [replace] false, only the given ones change. Values without
+     * a type tag (older exports) are taken as they are.
+     */
+    suspend fun importPreferences(prefs: JSONObject, replace: Boolean = true) {
+        context.dataStore.edit { p ->
+            val call = p[K.myCall]
+            if (replace) p.clear()
+            call?.let { p[K.myCall] = it }
+            p[K.onboarded] = true // restored from Settings, so past the welcome screens
+            for (name in prefs.keys()) {
+                if (name == K.myCall.name) continue
+                val entry = prefs.get(name)
+                val (type, v) = if (entry is JSONObject) entry.optString("t") to entry.get("v") else "" to entry
+                when {
+                    type == "b" || (type == "" && v is Boolean) -> p[booleanPreferencesKey(name)] = v as Boolean
+                    type == "i" || (type == "" && v is Int) -> p[intPreferencesKey(name)] = (v as Number).toInt()
+                    type == "l" || (type == "" && v is Long) -> p[longPreferencesKey(name)] = (v as Number).toLong()
+                    type == "f" || (type == "" && v is Double) -> p[floatPreferencesKey(name)] = (v as Number).toFloat()
+                    type == "s" || (type == "" && v is String) -> p[stringPreferencesKey(name)] = v as String
+                }
+            }
+        }
+    }
 
     private fun Preferences.toSettings(): Settings {
         val d = Settings()

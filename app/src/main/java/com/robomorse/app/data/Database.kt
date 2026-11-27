@@ -139,6 +139,24 @@ interface MorseDao {
         return id
     }
 
+    @Insert suspend fun insertSessions(s: List<SessionEntity>)
+    @Insert suspend fun insertConfusions(c: List<ConfusionEntity>)
+
+    /** Replaces everything with a restored backup. Session ids are kept so answers stay linked. */
+    @Transaction
+    suspend fun replaceAll(
+        sessions: List<SessionEntity>,
+        attempts: List<AttemptEntity>,
+        stats: List<ItemStatsEntity>,
+        confusions: List<ConfusionEntity>,
+    ) {
+        clearAll()
+        insertSessions(sessions)
+        insertAttempts(attempts)
+        upsertStats(stats)
+        insertConfusions(confusions)
+    }
+
     @Query("DELETE FROM item_stats") suspend fun clearStats()
     @Query("DELETE FROM confusion") suspend fun clearConfusion()
     @Query("DELETE FROM session") suspend fun clearSessions()

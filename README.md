@@ -100,8 +100,9 @@ See [PLAN.md](PLAN.md) for the full design, including the evidence behind each c
 - An optional daily reminder, skipped if you've already practiced.
 
 Everything runs offline, with no account. Data stays on the device unless you choose to
-share it: Settings → Share practice data saves every session and answer to a JSON file
-(without your callsign) and opens Android's share menu.
+share it: Settings → Back up or share saves all progress and settings (without your
+callsign) to a JSON file and opens Android's share menu, and Restore loads such a file,
+for example on a new phone.
 
 ## Building
 
