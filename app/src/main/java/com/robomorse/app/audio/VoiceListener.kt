@@ -42,8 +42,12 @@ class VoiceListener(private val context: Context) {
         if (onDevice && Build.VERSION.SDK_INT >= 31) SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
         else SpeechRecognizer.createSpeechRecognizer(context)
 
-    /** Listens until the speaker stops, and returns what was heard. */
-    suspend fun listen(onReady: () -> Unit = {}): Heard = withContext(Dispatchers.Main) {
+    /**
+     * Listens until the speaker stops, and returns what was heard. If [acceptEarly] says yes
+     * to a partial result while the speaker is still talking, that is returned at once,
+     * without waiting for the silence that ends a normal result.
+     */
+    suspend fun listen(onReady: () -> Unit = {}, acceptEarly: (List<String>) -> Boolean = { false }): Heard = withContext(Dispatchers.Main) {
         val r = recognizer ?: create().also { recognizer = it }
         suspendCancellableCoroutine { cont ->
             r.setRecognitionListener(object : RecognitionListener {
@@ -52,7 +56,14 @@ class VoiceListener(private val context: Context) {
                 override fun onRmsChanged(rmsdB: Float) {}
                 override fun onBufferReceived(buffer: ByteArray?) {}
                 override fun onEndOfSpeech() {}
-                override fun onPartialResults(partialResults: Bundle?) {}
+                override fun onPartialResults(partialResults: Bundle?) {
+                    val list = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION).orEmpty()
+                        .filter { it.isNotBlank() }
+                    if (cont.isActive && list.isNotEmpty() && acceptEarly(list)) {
+                        cont.resume(Heard.Words(list))
+                        runCatching { r.cancel() }
+                    }
+                }
                 override fun onEvent(eventType: Int, params: Bundle?) {}
 
                 override fun onResults(results: Bundle?) {
@@ -74,6 +85,7 @@ class VoiceListener(private val context: Context) {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-US")
                 putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
                 putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                 putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 700L)
                 putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 500L)
                 if (Build.VERSION.SDK_INT >= 33) {

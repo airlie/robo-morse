@@ -174,9 +174,13 @@ class VoiceViewModel(private val c: AppContainer) : ViewModel() {
 
     private suspend fun speak() {
         _state.update { it.copy(phase = VoicePhase.SPEAK, micReady = false) }
-        val heard = c.voice.listen { _state.update { it.copy(micReady = true) } }
-        _state.update { it.copy(micReady = false) }
         val target = _state.value.target
+        // A right answer is taken as soon as it is heard; anything else waits for the final result.
+        val heard = c.voice.listen(
+            onReady = { _state.update { it.copy(micReady = true) } },
+            acceptEarly = { guesses -> VoiceAnswers.matches(target, guesses) },
+        )
+        _state.update { it.copy(micReady = false) }
         when (heard) {
             is Heard.Words -> answer(target, heard.guesses)
             Heard.Silence, Heard.NoMatch -> {
