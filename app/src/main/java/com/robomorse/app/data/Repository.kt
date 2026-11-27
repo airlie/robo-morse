@@ -120,11 +120,11 @@ class Repository(private val dao: MorseDao, val settings: SettingsRepository) {
      * Saves a word and callsign copy session. It counts toward practice time and streaks,
      * but its words aren't character attempts, so it leaves character stats alone.
      */
-    suspend fun saveCopySession(startedAt: Long, endedAt: Long, items: Int, correct: Int) {
+    suspend fun saveCopySession(startedAt: Long, endedAt: Long, items: Int, correct: Int, mode: String = COPY_MODE) {
         val s = settings.current()
         dao.saveSession(
             session = SessionEntity(
-                mode = COPY_MODE,
+                mode = mode,
                 startedAt = startedAt,
                 endedAt = endedAt,
                 charWpm = s.charWpm,
@@ -151,6 +151,12 @@ class Repository(private val dao: MorseDao, val settings: SettingsRepository) {
 
 /** Session mode stored for word and callsign copy. */
 const val COPY_MODE = "COPY"
+const val HEAD_COPY_MODE = "HEAD"
+const val LADDER_MODE = "LADDER"
+const val ON_AIR_MODE = "ONAIR"
+
+/** Modes scored by word or field rather than by character: kept out of accuracy and speed charts. */
+val WHOLE_ITEM_MODES = setOf(COPY_MODE, HEAD_COPY_MODE, LADDER_MODE, ON_AIR_MODE)
 
 /** Minutes practiced on each day, from the session log. */
 fun minutesByDay(sessions: List<SessionEntity>): Map<LocalDate, Double> =

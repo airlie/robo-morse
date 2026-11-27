@@ -109,6 +109,9 @@ fun HomeScreen(
     onPractice: () -> Unit,
     onIcr: () -> Unit,
     onCopy: () -> Unit,
+    onHeadCopy: () -> Unit,
+    onLadder: () -> Unit,
+    onOnAir: () -> Unit,
     onRefresher: () -> Unit,
     onFreeSend: () -> Unit,
     onEcho: () -> Unit,
@@ -141,21 +144,47 @@ fun HomeScreen(
                 modifier = Modifier.weight(1f),
             )
             ModeTile(
+                title = "Head copy",
+                motif = "H",
+                body = "Hear a word or phrase, hold it in your head, then pick it.",
+                onClick = onHeadCopy,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            ModeTile(
                 title = "ICR sprint",
                 motif = "I",
                 body = "Single characters. Answer as fast as you can.",
                 onClick = onIcr,
                 modifier = Modifier.weight(1f),
             )
+            ModeTile(
+                title = "Refresher",
+                motif = "R",
+                body = "Back after a break? Rebuild your characters two at a time.",
+                onClick = onRefresher,
+                modifier = Modifier.weight(1f),
+            )
         }
-        ModeTile(
-            title = "Refresher",
-            motif = "R",
-            body = "Back after a break? Rebuild your characters two at a time.",
-            onClick = onRefresher,
-            modifier = Modifier.fillMaxWidth(),
-            compact = true,
-        )
+
+        SectionTitle("On the air", "Callsigns and contacts, the way they sound on the band")
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            ModeTile(
+                title = "Callsign ladder",
+                motif = "C",
+                body = "25 callsigns that speed up as you copy them. Beat your best.",
+                onClick = onLadder,
+                modifier = Modifier.weight(1f),
+            )
+            ModeTile(
+                title = "On-air practice",
+                motif = "Q",
+                body = "A practice contact. Copy call, report, name and more.",
+                onClick = onOnAir,
+                modifier = Modifier.weight(1f),
+            )
+        }
 
         SectionTitle("Send", "Key it yourself on a straight key or paddle")
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {

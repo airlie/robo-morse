@@ -21,6 +21,12 @@ import androidx.navigation.navArgument
 import com.robomorse.app.data.Settings
 import com.robomorse.app.ui.copy.CopyScreen
 import com.robomorse.app.ui.copy.CopyViewModel
+import com.robomorse.app.ui.headcopy.HeadCopyScreen
+import com.robomorse.app.ui.headcopy.HeadCopyViewModel
+import com.robomorse.app.ui.ladder.LadderScreen
+import com.robomorse.app.ui.ladder.LadderViewModel
+import com.robomorse.app.ui.onair.OnAirScreen
+import com.robomorse.app.ui.onair.OnAirViewModel
 import com.robomorse.app.ui.RoboMorseTheme
 import com.robomorse.app.ui.home.HomeScreen
 import com.robomorse.app.ui.home.HomeViewModel
@@ -69,6 +75,9 @@ private fun AppNav(c: AppContainer) {
                 onIcr = { nav.navigate("practice/ICR") },
                 onRefresher = { nav.navigate("practice/REFRESH") },
                 onCopy = { nav.navigate("copy") },
+                onHeadCopy = { nav.navigate("headcopy") },
+                onLadder = { nav.navigate("ladder") },
+                onOnAir = { nav.navigate("onair") },
                 onFreeSend = { nav.navigate("send/FREE") },
                 onEcho = { nav.navigate("send/ECHO") },
                 onStats = { nav.navigate("stats") },
@@ -102,6 +111,9 @@ private fun AppNav(c: AppContainer) {
             )
         }
         composable("copy") { CopyScreen(viewModel { CopyViewModel(c) }, onBack = { nav.popBackStack() }) }
+        composable("headcopy") { HeadCopyScreen(viewModel { HeadCopyViewModel(c) }, onBack = { nav.popBackStack() }) }
+        composable("ladder") { LadderScreen(viewModel { LadderViewModel(c) }, onBack = { nav.popBackStack() }) }
+        composable("onair") { OnAirScreen(viewModel { OnAirViewModel(c) }, onBack = { nav.popBackStack() }) }
         composable("stats") {
             StatsScreen(viewModel { StatsViewModel(c) }, onBack = { nav.popBackStack() }) { ch -> nav.navigate("char/${ch.code}") }
         }

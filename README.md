@@ -47,6 +47,16 @@ See [PLAN.md](PLAN.md) for the full design, including the evidence behind each c
   order, each reintroduced with its sound and pattern, in short, slightly slower groups.
   Missed characters are always replayed. Suggested on the home screen after 5 days
   away, and offered mid-lesson if accuracy drops near guessing.
+- **Head copy:** a word or phrase plays with nothing to type, then you pick it from four
+  look-alike choices (for example HAS, HAD, HIS, WAS). Levels run from short words to
+  contact phrases.
+
+**On the air**
+- **Callsign ladder:** a run of 25 callsigns at full speed. Each one copied makes the
+  next 2 WPM faster, each miss slower; points are length × speed, and your best run is kept.
+- **On-air practice:** a simulated contact, one over at a time: CQ, then report, name and
+  location, then power, antenna and weather. Copy what goes in the log, check it, and see
+  the whole over with its shorthand explained. Set your own callsign in Settings.
 - **Accurate timing:** tones are synthesized with click-free edges, and character end
   times come from the audio clock (`AudioTimestamp`), so output latency doesn't distort
   response times.

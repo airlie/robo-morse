@@ -80,7 +80,14 @@ fun CopyScreen(vm: CopyViewModel, onBack: () -> Unit) {
                 true
             },
     ) {
-        TopBar(s, onPause = { vm.pause() }, onEnd = { vm.finish(onBack) })
+        DrillTopBar(
+            title = "Word & callsign copy",
+            subtitle = "${s.charWpm}/${s.effWpm} WPM · ${formatMs(s.elapsedMs)}" +
+                if (s.items > 0) " · ${s.correct} of ${s.items} copied" else "",
+            canPause = s.canPause,
+            onPause = { vm.pause() },
+            onEnd = { vm.finish(onBack) },
+        )
         Options(s, vm)
 
         Box(Modifier.fillMaxWidth().weight(1f).padding(16.dp), contentAlignment = Alignment.Center) {
@@ -109,20 +116,16 @@ fun CopyScreen(vm: CopyViewModel, onBack: () -> Unit) {
     }
 }
 
+/** Title, a status line, and Pause and End buttons: shared by the drill screens. */
 @Composable
-private fun TopBar(s: CopyUiState, onPause: () -> Unit, onEnd: () -> Unit) {
+internal fun DrillTopBar(title: String, subtitle: String, canPause: Boolean, onPause: () -> Unit, onEnd: () -> Unit) {
     Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("Word & callsign copy", style = MaterialTheme.typography.titleMedium)
-                Text(
-                    "${s.charWpm}/${s.effWpm} WPM · ${formatMs(s.elapsedMs)}" +
-                        if (s.items > 0) " · ${s.correct} of ${s.items} copied" else "",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Text(title, style = MaterialTheme.typography.titleMedium)
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            OutlinedButton(onClick = onPause, enabled = s.canPause) { Text("Pause") }
+            OutlinedButton(onClick = onPause, enabled = canPause) { Text("Pause") }
             Spacer(Modifier.width(8.dp))
             OutlinedButton(onClick = onEnd) { Text("End") }
         }
@@ -258,7 +261,7 @@ private fun ResultArea(s: CopyUiState) {
 }
 
 @Composable
-private fun PausedCard(reason: String?, onResume: () -> Unit, onEnd: () -> Unit) {
+internal fun PausedCard(reason: String?, onResume: () -> Unit, onEnd: () -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text("Paused", style = MaterialTheme.typography.headlineMedium)
         reason?.let {

@@ -46,6 +46,15 @@ data class Settings(
     /** Word and callsign copy: current level, and whether to use characters not yet learned. */
     val copyLevel: String = "SHORT_WORDS",
     val copyAllChars: Boolean = false,
+    /** Your own callsign, used in on-air practice (blank: make one up). */
+    val myCall: String = "",
+    /** Callsign ladder: starting speed (0: your character speed), and best run. */
+    val ladderStartWpm: Int = 0,
+    val ladderBest: Int = 0,
+    val ladderBestPeak: Int = 0,
+    /** Head copy: current level, and whether to use characters not yet learned. */
+    val headLevel: String = "SHORT",
+    val headAllChars: Boolean = false,
 )
 
 private val Context.dataStore by preferencesDataStore(name = "settings")
@@ -77,6 +86,12 @@ class SettingsRepository(private val context: Context) {
         val showPatternOnMiss = booleanPreferencesKey("showPatternOnMiss")
         val copyLevel = stringPreferencesKey("copyLevel")
         val copyAllChars = booleanPreferencesKey("copyAllChars")
+        val myCall = stringPreferencesKey("myCall")
+        val ladderStartWpm = intPreferencesKey("ladderStartWpm")
+        val ladderBest = intPreferencesKey("ladderBest")
+        val ladderBestPeak = intPreferencesKey("ladderBestPeak")
+        val headLevel = stringPreferencesKey("headLevel")
+        val headAllChars = booleanPreferencesKey("headAllChars")
     }
 
     val settings: Flow<Settings> = context.dataStore.data.map { p -> p.toSettings() }
@@ -111,6 +126,12 @@ class SettingsRepository(private val context: Context) {
             showPatternOnMiss = this[K.showPatternOnMiss] ?: d.showPatternOnMiss,
             copyLevel = this[K.copyLevel] ?: d.copyLevel,
             copyAllChars = this[K.copyAllChars] ?: d.copyAllChars,
+            myCall = this[K.myCall] ?: d.myCall,
+            ladderStartWpm = this[K.ladderStartWpm] ?: d.ladderStartWpm,
+            ladderBest = this[K.ladderBest] ?: d.ladderBest,
+            ladderBestPeak = this[K.ladderBestPeak] ?: d.ladderBestPeak,
+            headLevel = this[K.headLevel] ?: d.headLevel,
+            headAllChars = this[K.headAllChars] ?: d.headAllChars,
         )
     }
 
@@ -142,6 +163,12 @@ class SettingsRepository(private val context: Context) {
             p[K.showPatternOnMiss] = s.showPatternOnMiss
             p[K.copyLevel] = s.copyLevel
             p[K.copyAllChars] = s.copyAllChars
+            p[K.myCall] = s.myCall
+            p[K.ladderStartWpm] = s.ladderStartWpm
+            p[K.ladderBest] = s.ladderBest
+            p[K.ladderBestPeak] = s.ladderBestPeak
+            p[K.headLevel] = s.headLevel
+            p[K.headAllChars] = s.headAllChars
         }
     }
 }

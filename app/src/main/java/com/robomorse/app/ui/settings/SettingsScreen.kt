@@ -124,6 +124,19 @@ fun SettingsScreen(c: AppContainer, onBack: () -> Unit) {
             label = { Text("My plan: when and where I'll practice") },
             modifier = Modifier.fillMaxWidth(),
         )
+        var myCall by remember(s.myCall) { mutableStateOf(s.myCall) }
+        OutlinedTextField(
+            value = myCall,
+            onValueChange = { v ->
+                val clean = v.uppercase().filter { it.isLetterOrDigit() || it == '/' }.take(12)
+                myCall = clean
+                update { cur -> cur.copy(myCall = clean) }
+            },
+            label = { Text("Your callsign (for on-air practice)") },
+            supportingText = { Text("Leave blank and one is made up each time.") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
 
         HorizontalDivider()
         Section("Pacing")

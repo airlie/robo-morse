@@ -46,7 +46,7 @@ import androidx.lifecycle.viewModelScope
 import com.robomorse.app.AppContainer
 import com.robomorse.app.data.CharSessionPoint
 import com.robomorse.app.data.ConfusionEntity
-import com.robomorse.app.data.COPY_MODE
+import com.robomorse.app.data.WHOLE_ITEM_MODES
 import com.robomorse.app.data.SessionEntity
 import com.robomorse.app.data.Settings
 import com.robomorse.app.data.toLocalDate
@@ -181,7 +181,7 @@ private fun Overview(s: StatsState, learned: List<Char>, scale: SpeedScale) {
     val totalMin = s.sessions.sumOf { (it.endedAt - it.startedAt) / 60_000.0 }
     val weekAgo = LocalDate.now().minusDays(7)
     // Accuracy is per character, so copy sessions (scored per word) are left out.
-    val recent = s.sessions.filter { it.startedAt.toLocalDate().isAfter(weekAgo) && it.mode != COPY_MODE }
+    val recent = s.sessions.filter { it.startedAt.toLocalDate().isAfter(weekAgo) && it.mode !in WHOLE_ITEM_MODES }
     val recentAcc = recent.sumOf { it.correct }.toDouble() / recent.sumOf { it.attempts }.coerceAtLeast(1)
     val solid = learned.count { ch -> s.stats[ch]?.let { LearnerModel.mastery(it, scale) >= MasteryTier.SOLID.min } == true }
     val fastest = learned.mapNotNull { ch -> s.stats[ch]?.bestRtMs?.let { ch to it } }.minByOrNull { it.second }
@@ -209,7 +209,7 @@ private fun Line(label: String, value: String) {
 /** Effective speed and accuracy per session over time. */
 @Composable
 private fun SpeedHistory(sessions: List<SessionEntity>) {
-    val points = sessions.filter { it.mode != COPY_MODE }.sortedBy { it.startedAt }.takeLast(60)
+    val points = sessions.filter { it.mode !in WHOLE_ITEM_MODES }.sortedBy { it.startedAt }.takeLast(60)
     if (points.size < 2) return
     val line = MaterialTheme.colorScheme.primary
     val acc = MaterialTheme.colorScheme.tertiary
