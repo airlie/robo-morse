@@ -46,6 +46,8 @@ class PracticeSession(
     private val nowMs: () -> Long = System::currentTimeMillis,
     private val config: EngineConfig = EngineConfig(),
     private val random: Random = Random.Default,
+    /** Koch lessons: the group length to start at (see [groupLength]). */
+    startGroupLength: Int = MAX_GROUP_LENGTH,
 ) {
     private val learnedList = Curriculum.learned(kochOrder, learnedCount).toMutableList()
     val learned: List<Char> get() = learnedList
@@ -78,6 +80,28 @@ class PracticeSession(
     /** Refresher only: every learned character is back and the last stage went well. */
     var refresherComplete: Boolean = false
         private set
+
+    /**
+     * Koch lessons: how many characters a group has. It starts short, grows one step at a
+     * time while you're accurate, steps back when you're struggling, and drops to 1 when a
+     * new character arrives. At the top step groups are 4 or 5 characters long.
+     */
+    var groupLength: Int = startGroupLength.coerceIn(1, MAX_GROUP_LENGTH)
+        private set
+
+    /** After the latest [submit]: +1 if groups just got longer, -1 if shorter, else 0. */
+    var lengthChange: Int = 0
+        private set
+
+    private val lengthWindow = ArrayDeque<Boolean>()
+    private var groupsAtLength = 0
+
+    /** Picks left in which a just-added character is played half the time. */
+    private var newFocusLeft = 0
+
+    // Confused pairs (either way round) among recent answers, for a focused drill.
+    private val recentPairs = ArrayDeque<Pair<Char, Char>?>()
+    private var pairCooldown = 0
 
     /** Multiplier on the weak-item weight; raised when things are too easy. */
     var weakBias: Double = 1.0
@@ -122,7 +146,7 @@ class PracticeSession(
     fun nextPrompt(): String {
         val length = when (mode) {
             PracticeMode.ICR -> 1
-            PracticeMode.KOCH -> random.nextInt(3, 6)
+            PracticeMode.KOCH -> if (groupLength >= MAX_GROUP_LENGTH) random.nextInt(4, 6) else groupLength
             // Short groups while relearning: one or two characters, then up to three.
             PracticeMode.REFRESH -> if (activeCount <= 4) random.nextInt(1, 3) else random.nextInt(2, 4)
         }
@@ -138,12 +162,20 @@ class PracticeSession(
             out[0] = if (random.nextBoolean()) pair.first else pair.second
         }
         val w = weights()
+        val newest = learnedList.last()
+        val others = w - newest
         for (i in out.indices) {
             if (out[i] != ' ') continue
             var pick: Char
             var tries = 0
+            val focus = newFocusLeft > 0 && others.isNotEmpty()
+            if (newFocusLeft > 0) newFocusLeft--
             do {
-                pick = weightedPick(w)
+                pick = when {
+                    !focus -> weightedPick(w)
+                    random.nextBoolean() -> newest
+                    else -> weightedPick(others)
+                }
                 tries++
             } while (tries < 5 && i >= 2 && out[i - 1] == pick && out[i - 2] == pick)
             out[i] = pick
@@ -161,20 +193,47 @@ class PracticeSession(
         return w.keys.last()
     }
 
-    /** Scores [answers] against [prompt], position by position. */
-    fun submit(prompt: String, answers: List<Answer>): List<AttemptResult> {
+    /**
+     * Scores [answers] against [prompt], position by position. Answers from a side drill
+     * ([progress] false, such as a two-character focus drill) update what's known about
+     * each character but don't count toward unlocking, group length or difficulty.
+     */
+    fun submit(prompt: String, answers: List<Answer>, progress: Boolean = true): List<AttemptResult> {
         val results = prompt.mapIndexed { i, expected ->
             val a = answers.getOrNull(i)
             val answered = a?.char?.uppercaseChar()
             val ok = answered == expected
             AttemptResult(expected, answered, ok, if (ok) a.rtMs else null)
         }
-        results.forEach(::apply)
-        adjustDifficulty()
+        results.forEach { apply(it, progress) }
+        lengthChange = 0
+        if (progress) {
+            adjustDifficulty()
+            if (mode == PracticeMode.KOCH) adjustLength(results)
+        }
         return results
     }
 
-    private fun apply(r: AttemptResult) {
+    private fun adjustLength(results: List<AttemptResult>) {
+        results.forEach { push(lengthWindow, it.correct, 15) }
+        groupsAtLength++
+        fun acc(n: Int) = lengthWindow.takeLast(n).count { it }.toDouble() / n
+        val up = maxOf(8, 3 * groupLength)
+        val down = maxOf(6, 2 * groupLength)
+        val change = when {
+            groupLength < MAX_GROUP_LENGTH && groupsAtLength >= 2 && lengthWindow.size >= up && acc(up) >= 0.9 -> 1
+            groupLength > 1 && lengthWindow.size >= down && acc(down) < 0.6 -> -1
+            else -> 0
+        }
+        if (change != 0) {
+            groupLength += change
+            lengthChange = change
+            lengthWindow.clear()
+            groupsAtLength = 0
+        }
+    }
+
+    private fun apply(r: AttemptResult, progress: Boolean) {
         val c = r.expected
         stats[c] = LearnerModel.record(statsFor(c), r.correct, r.rtMs, config)
         attempts++
@@ -182,10 +241,19 @@ class PracticeSession(
         counts[c] = counts.getOrDefault(c, CharSessionCount()).let {
             it.copy(attempts = it.attempts + 1, correct = it.correct + if (r.correct) 1 else 0)
         }
+        if (!progress) {
+            if (!r.correct && r.answered != null && r.answered != c) {
+                confusions[c to r.answered] = confusions.getOrDefault(c to r.answered, 0) + 1
+            }
+            return
+        }
         push(rolling, r.correct, config.rollingWindow)
         push(unlockWindow, r.correct, config.unlockWindow)
         if (c in active) push(stageWindow, r.correct, REFRESH_WINDOW)
         if (firstWindow.size < config.rollingWindow) firstWindow += r.correct
+        val a0 = r.answered
+        push(recentPairs, if (!r.correct && a0 != null && a0 != c && a0 in active) orderedPair(c, a0) else null, PAIR_WINDOW)
+        if (pairCooldown > 0) pairCooldown--
         if (!r.correct) {
             push(recentErrorChars, c, 6)
             val a = r.answered
@@ -215,6 +283,24 @@ class PracticeSession(
         }
     }
 
+    private fun orderedPair(a: Char, b: Char) = if (a < b) a to b else b to a
+
+    /**
+     * Koch lessons: a pair of characters you've mixed up at least [PAIR_TRIGGER] times
+     * in your last [PAIR_WINDOW] answers, ready for a focused drill. Null if none.
+     */
+    fun focusPairReady(): Pair<Char, Char>? {
+        if (mode != PracticeMode.KOCH || pairCooldown > 0) return null
+        return recentPairs.filterNotNull().groupingBy { it }.eachCount()
+            .filter { it.value >= PAIR_TRIGGER }.maxByOrNull { it.value }?.key
+    }
+
+    /** Call when a focus drill on a pair starts, so the same mix-ups don't trigger another straight away. */
+    fun focusPairStarted() {
+        recentPairs.clear()
+        pairCooldown = PAIR_COOLDOWN
+    }
+
     /** True when the next Koch character should be offered. */
     fun unlockReady(): Boolean {
         if (mode == PracticeMode.REFRESH) return false
@@ -224,6 +310,8 @@ class PracticeSession(
         if (windowAcc < config.unlockAccuracy) return false
         val scale = speedScale()
         if (learnedList.any { LearnerModel.mastery(statsFor(it), scale, config) < config.unlockMinMastery }) return false
+        // A Koch lesson first builds back up to longer groups.
+        if (mode == PracticeMode.KOCH && groupLength < UNLOCK_MIN_GROUP_LENGTH) return false
         return statsFor(learnedList.last()).acc >= config.unlockNewestAccuracy
     }
 
@@ -255,6 +343,13 @@ class PracticeSession(
         stats.getOrPut(c) { ItemStats.fresh(c, config) }
         unlocked += c
         unlockWindow.clear()
+        if (mode == PracticeMode.KOCH) {
+            // Back to one character at a time, half of them the new one, then build up again.
+            groupLength = 1
+            lengthWindow.clear()
+            groupsAtLength = 0
+            newFocusLeft = NEW_FOCUS_PICKS
+        }
         return c
     }
 
@@ -282,6 +377,20 @@ class PracticeSession(
         return SessionSummary(attempts, correct, counts.toMap(), confusions.toMap(), unlocked.toList(), changes, stats.toMap())
     }
 }
+
+/** Koch group lengths run 1, 2, 3, 4, then 4–5 at the top step. */
+const val MAX_GROUP_LENGTH = 5
+
+/** A new character is offered only once groups are at least this long again. */
+const val UNLOCK_MIN_GROUP_LENGTH = 4
+
+/** After a new character arrives, it is played in half of this many picks. */
+const val NEW_FOCUS_PICKS = 16
+
+/** A pair mixed up [PAIR_TRIGGER] times in the last [PAIR_WINDOW] answers gets a focus drill; then [PAIR_COOLDOWN] answers before another. */
+const val PAIR_WINDOW = 30
+const val PAIR_TRIGGER = 3
+const val PAIR_COOLDOWN = 40
 
 /** A refresher starts with this many characters and brings back this many per stage. */
 const val REFRESH_START = 2

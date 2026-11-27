@@ -3,6 +3,7 @@ package com.robomorse.app.ui.practice
 import android.view.KeyEvent as AndroidKeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -53,6 +54,7 @@ import com.robomorse.app.ui.CorrectGreen
 import com.robomorse.app.ui.MorsePattern
 import com.robomorse.app.ui.MorseKeyboard
 import com.robomorse.app.ui.WrongRed
+import com.robomorse.core.MAX_GROUP_LENGTH
 import com.robomorse.core.PracticeMode
 
 @Composable
@@ -109,7 +111,10 @@ fun PracticeScreen(vm: PracticeViewModel, onSwitch: (PracticeMode) -> Unit, onFi
                     onLesson = { vm.switchTo(PracticeMode.KOCH, onSwitch) },
                     onFinish = { vm.finish(onFinished) },
                 )
-                else -> AnswerArea(s, onReplay = vm::replay, onSkip = vm::submitNow)
+                s.rest != null -> RestCard(s.rest ?: 0)
+                s.phase == Phase.FOCUS_INTRO -> FocusIntroCard(s, onSkip = vm::skipFocus)
+                s.phase == Phase.FOCUS_DONE -> FocusDoneCard(s.focusResult)
+                else -> AnswerArea(s, onReplay = vm::replay, onSkip = vm::submitNow, onEdit = vm::editSlot, onSkipFocus = vm::skipFocus)
             }
         }
 
@@ -157,7 +162,12 @@ private fun TopBar(s: PracticeUiState, onPause: () -> Unit, onEnd: () -> Unit) {
                     if (s.mode == PracticeMode.REFRESH) {
                         "${s.activeCount} of ${s.totalLearned} characters back · ${s.charWpm}/${s.effWpm} WPM"
                     } else {
-                        "${s.charWpm}/${s.effWpm} WPM · ${s.learned.size} characters"
+                        "${s.charWpm}/${s.effWpm} WPM · " + when {
+                            s.focusPair != null -> "focus on ${s.focusPair.first} and ${s.focusPair.second}"
+                            s.mode == PracticeMode.KOCH ->
+                                "${s.learned.size} characters · " + if (s.groupLength >= MAX_GROUP_LENGTH) "full groups" else "groups of ${s.groupLength}"
+                            else -> "${s.learned.size} characters"
+                        }
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -206,7 +216,7 @@ private fun PausedCard(s: PracticeUiState, onResume: () -> Unit, onEnd: () -> Un
             Text("Take a breath", style = MaterialTheme.typography.headlineMedium)
             Spacer(Modifier.height(8.dp))
             Text(
-                "${s.groupsDone} groups done · recent accuracy ${(s.rollingAccuracy * 100).toInt()}%",
+                (if (s.mode == PracticeMode.ICR) "${s.charsDone} characters" else "${s.groupsDone} groups") + " done · recent accuracy ${(s.rollingAccuracy * 100).toInt()}%",
                 style = MaterialTheme.typography.bodyLarge,
             )
             Spacer(Modifier.height(8.dp))
@@ -253,7 +263,8 @@ private fun ReadyCard(s: PracticeUiState, onStart: () -> Unit) {
             when (s.mode) {
                 PracticeMode.KOCH ->
                     "Listen to each group and type the characters as you hear them. Don't count dits and dahs; " +
-                        "let each sound map straight to its letter. If you don't know one, skip it and move on."
+                        "let each sound map straight to its letter. If you don't know one, skip it and move on." +
+                        "\n\nGroups start short, one character at a time, and grow as you get them right."
                 PracticeMode.ICR ->
                     "One character at a time. Answer as fast as you can. Speed of recognition is what this drill trains."
                 PracticeMode.REFRESH ->
@@ -321,9 +332,16 @@ private fun RefreshDoneCard(s: PracticeUiState, onLesson: () -> Unit, onFinish: 
  * underscores, which look like dahs.
  */
 @Composable
-internal fun Slot(text: String, borderColor: Color, textColor: Color, emphasized: Boolean = false, width: Dp = 48.dp) {
+internal fun Slot(
+    text: String,
+    borderColor: Color,
+    textColor: Color,
+    emphasized: Boolean = false,
+    width: Dp = 48.dp,
+    modifier: Modifier = Modifier,
+) {
     Box(
-        Modifier
+        modifier
             .size(width = width, height = 60.dp)
             .border(if (emphasized) 3.dp else 2.dp, borderColor, RoundedCornerShape(10.dp)),
         contentAlignment = Alignment.Center,
@@ -333,7 +351,13 @@ internal fun Slot(text: String, borderColor: Color, textColor: Color, emphasized
 }
 
 @Composable
-private fun AnswerArea(s: PracticeUiState, onReplay: () -> Unit, onSkip: () -> Unit) {
+private fun AnswerArea(
+    s: PracticeUiState,
+    onReplay: () -> Unit,
+    onSkip: () -> Unit,
+    onEdit: (Int) -> Unit,
+    onSkipFocus: () -> Unit,
+) {
     val outline = MaterialTheme.colorScheme.outlineVariant
     val onSurface = MaterialTheme.colorScheme.onSurface
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -376,27 +400,53 @@ private fun AnswerArea(s: PracticeUiState, onReplay: () -> Unit, onSkip: () -> U
                 }
             }
             Spacer(Modifier.height(12.dp))
-            Text("Next group in a moment", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        } else {
             Text(
-                if (s.playing) "♪ Listening…" else "Your answer",
+                s.lengthNote ?: "Next group in a moment",
+                style = if (s.lengthNote != null) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.labelMedium,
+                color = if (s.lengthNote?.startsWith("Nice") == true) CorrectGreen else MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+        } else {
+            s.lengthNote?.let {
+                Text(it, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
+                Spacer(Modifier.height(8.dp))
+            }
+            Text(
+                when {
+                    s.focusPair != null -> "${s.focusPair.first} or ${s.focusPair.second}?"
+                    s.playing -> "♪ Listening…"
+                    else -> "Your answer"
+                },
                 style = MaterialTheme.typography.titleMedium,
             )
             Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 repeat(s.promptLength) { i ->
-                    val next = i == s.typed.length
+                    val filled = i < s.typed.length
+                    val current = if (s.editIndex != null) i == s.editIndex else i == s.typed.length
                     Slot(
                         s.typed.getOrNull(i)?.toString() ?: "",
-                        borderColor = if (next) MaterialTheme.colorScheme.primary else outline,
-                        textColor = onSurface,
+                        borderColor = if (current) MaterialTheme.colorScheme.primary else outline,
+                        textColor = if (i == s.editIndex) MaterialTheme.colorScheme.primary else onSurface,
+                        emphasized = i == s.editIndex,
+                        modifier = if (filled && s.promptLength > 1 && s.acceptingInput) Modifier.clickable { onEdit(i) } else Modifier,
                     )
                 }
+            }
+            if (s.promptLength > 1) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    if (s.editIndex != null) "Press the right key, or tap the letter again to keep it" else "Tap a letter to change it",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.alpha(if (s.typed.isEmpty()) 0f else 1f),
+                )
             }
             Spacer(Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedButton(onClick = onReplay, enabled = !s.playing) { Text("Replay") }
                 OutlinedButton(onClick = onSkip) { Text("Skip") }
+                if (s.focusPair != null) TextButton(onClick = onSkipFocus) { Text("Back to lesson") }
             }
         }
     }
@@ -405,4 +455,67 @@ private fun AnswerArea(s: PracticeUiState, onReplay: () -> Unit, onSkip: () -> U
 fun formatMs(ms: Long): String {
     val total = ms / 1000
     return "%d:%02d".format(total / 60, total % 60)
+}
+
+/** A few seconds' automatic rest in an ICR sprint. */
+@Composable
+private fun RestCard(secondsLeft: Int) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text("Short rest", style = MaterialTheme.typography.headlineSmall)
+        Spacer(Modifier.height(8.dp))
+        Text("$secondsLeft", fontSize = 48.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "Relax your hands. Brief rests help a new skill settle.",
+            style = MaterialTheme.typography.bodySmall,
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/** Two characters that keep getting mixed up, heard side by side before a short drill. */
+@Composable
+private fun FocusIntroCard(s: PracticeUiState, onSkip: () -> Unit) {
+    val pair = s.focusPair ?: return
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text("${pair.first} or ${pair.second}?", style = MaterialTheme.typography.headlineMedium)
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "You've mixed these two up a few times. That's very common. Listen to them side by side, " +
+                "then a short drill of just these two.",
+            style = MaterialTheme.typography.bodyMedium,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(20.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(32.dp)) {
+            listOf(pair.first, pair.second).forEach { ch ->
+                val on = s.focusShowing == ch
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.alpha(if (on || s.focusShowing == null) 1f else 0.3f),
+                ) {
+                    Text(
+                        ch.toString(),
+                        fontSize = 72.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (on) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                    )
+                    MorsePattern(ch.toString(), unit = 7.dp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+                }
+            }
+        }
+        Spacer(Modifier.height(20.dp))
+        TextButton(onClick = onSkip) { Text("Skip, back to lesson") }
+    }
+}
+
+@Composable
+private fun FocusDoneCard(message: String?) {
+    Text(
+        message ?: "",
+        style = MaterialTheme.typography.titleMedium,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.padding(horizontal = 8.dp),
+    )
 }

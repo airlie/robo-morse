@@ -36,10 +36,17 @@ See [PLAN.md](PLAN.md) for the full design, including the evidence behind each c
 ## Features
 
 **Receiving**
-- **Koch lessons:** groups of 3–5 characters, weighted toward weak characters and pairs
-  you confuse. Includes the next-character unlock, introductions of new characters, and
-  between-session speed adjustment.
-- **ICR sprint:** one character at a time, timed from the moment its sound ends.
+- **Koch lessons:** groups weighted toward weak characters and pairs you confuse. Groups
+  start at one character and grow a step at a time (1, 2, 3, 4, then 4–5) while you're
+  accurate, step back when you struggle, and drop to one at a time when a new character
+  arrives, with half the picks on the new one at first. A new character is offered only
+  once groups are long again. Tap a letter you've typed to change it. Includes
+  introductions of new characters and between-session speed adjustment.
+- **Mix-up drill:** mix up the same two characters 3 times in 30 answers and the lesson
+  pauses for a short focused drill: hear them side by side, then just those two, one at a
+  time, until 7 of 8 are right.
+- **ICR sprint:** one character at a time, timed from the moment its sound ends, with a
+  few seconds' automatic rest every 20 characters and a full breather less often.
 - **Word & callsign copy:** hear a whole word, ham abbreviation or callsign and type it.
   Levels run Short words → Words → Callsigns → Mixed and follow how you're doing; misses
   are replayed and come back a few items later, and shorthand like QTH or 73 is explained.

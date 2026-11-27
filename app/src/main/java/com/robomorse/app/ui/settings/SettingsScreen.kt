@@ -145,7 +145,7 @@ fun SettingsScreen(c: AppContainer, onBack: () -> Unit) {
             s.groupGapMs / 1000f, 0.5f..4f, 6,
         ) { v -> update { it.copy(groupGapMs = (v * 2).roundToInt() * 500) } }
         SliderRow(
-            "Breather", if (s.breatherEvery == 0) "Off" else "every ${s.breatherEvery} groups",
+            "Breather", if (s.breatherEvery == 0) "Off" else "about every ${s.breatherEvery * 4} characters",
             s.breatherEvery.toFloat(), 0f..20f, 3,
         ) { v -> update { it.copy(breatherEvery = (v / 5).roundToInt() * 5) } }
         Text("Replay missed characters", style = MaterialTheme.typography.bodyLarge)
