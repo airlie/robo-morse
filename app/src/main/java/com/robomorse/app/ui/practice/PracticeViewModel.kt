@@ -28,6 +28,7 @@ import java.time.LocalDate
 
 /** A filled group is scored after this long, leaving a moment to change a letter. */
 private const val SUBMIT_GRACE_MS = 600L
+private const val LOG_TAG = "RoboMorse"
 /** Breathers are counted in characters: this many per group's worth in a lesson. */
 private const val CHARS_PER_GROUP = 4
 /** ICR: a few seconds' rest every 2 × the breather setting, a full breather every 8 ×. */
@@ -214,8 +215,8 @@ class PracticeViewModel(private val c: AppContainer, private val mode: PracticeM
     private suspend fun nextPrompt() {
         prompt = focus?.next()?.toString() ?: session.nextPrompt()
         // For development only: off unless enabled with `adb shell setprop log.tag.RoboMorse DEBUG`.
-        if (android.util.Log.isLoggable("RoboMorse", android.util.Log.DEBUG)) {
-            android.util.Log.d("RoboMorse", "prompt=$prompt length=${session.groupLength}")
+        if (android.util.Log.isLoggable(LOG_TAG, android.util.Log.DEBUG)) {
+            android.util.Log.d(LOG_TAG, "prompt=$prompt length=${session.groupLength}")
         }
         keys.clear()
         edited.clear()
