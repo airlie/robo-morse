@@ -154,9 +154,10 @@ const val COPY_MODE = "COPY"
 const val HEAD_COPY_MODE = "HEAD"
 const val LADDER_MODE = "LADDER"
 const val ON_AIR_MODE = "ONAIR"
+const val VOICE_MODE = "VOICE"
 
 /** Modes scored by word or field rather than by character: kept out of accuracy and speed charts. */
-val WHOLE_ITEM_MODES = setOf(COPY_MODE, HEAD_COPY_MODE, LADDER_MODE, ON_AIR_MODE)
+val WHOLE_ITEM_MODES = setOf(COPY_MODE, HEAD_COPY_MODE, LADDER_MODE, ON_AIR_MODE, VOICE_MODE)
 
 /** Minutes practiced on each day, from the session log. */
 fun minutesByDay(sessions: List<SessionEntity>): Map<LocalDate, Double> =

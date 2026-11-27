@@ -112,6 +112,7 @@ fun HomeScreen(
     onHeadCopy: () -> Unit,
     onLadder: () -> Unit,
     onOnAir: () -> Unit,
+    onVoice: () -> Unit,
     onRefresher: () -> Unit,
     onFreeSend: () -> Unit,
     onEcho: () -> Unit,
@@ -160,13 +161,21 @@ fun HomeScreen(
                 modifier = Modifier.weight(1f),
             )
             ModeTile(
-                title = "Refresher",
-                motif = "R",
-                body = "Back after a break? Rebuild your characters two at a time.",
-                onClick = onRefresher,
+                title = "Say it",
+                motif = "S",
+                body = "Hear it, then say it out loud. No keys to hunt for.",
+                onClick = onVoice,
                 modifier = Modifier.weight(1f),
             )
         }
+        ModeTile(
+            title = "Refresher",
+            motif = "R",
+            body = "Back after a break? Rebuild your characters two at a time.",
+            onClick = onRefresher,
+            modifier = Modifier.fillMaxWidth(),
+            compact = true,
+        )
 
         SectionTitle("On the air", "Callsigns and contacts, the way they sound on the band")
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {

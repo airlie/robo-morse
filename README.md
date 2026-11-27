@@ -50,6 +50,11 @@ See [PLAN.md](PLAN.md) for the full design, including the evidence behind each c
 - **Head copy:** a word or phrase plays with nothing to type, then you pick it from four
   look-alike choices (for example HAS, HAD, HIS, WAS). Levels run from short words to
   contact phrases.
+- **Say it:** hear a character, group or word and say it out loud, as a phonetic word
+  ("Kilo") or letter name, using Android's speech recognizer. Untimed; the answer is shown
+  with each character's phonetic word and pattern. Needs microphone permission; on Android
+  12+ recognition runs on the phone where supported, otherwise through the system speech
+  service.
 
 **On the air**
 - **Callsign ladder:** a run of 25 callsigns at full speed. Each one copied makes the

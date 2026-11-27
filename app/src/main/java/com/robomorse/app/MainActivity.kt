@@ -27,6 +27,8 @@ import com.robomorse.app.ui.ladder.LadderScreen
 import com.robomorse.app.ui.ladder.LadderViewModel
 import com.robomorse.app.ui.onair.OnAirScreen
 import com.robomorse.app.ui.onair.OnAirViewModel
+import com.robomorse.app.ui.voice.VoiceScreen
+import com.robomorse.app.ui.voice.VoiceViewModel
 import com.robomorse.app.ui.RoboMorseTheme
 import com.robomorse.app.ui.home.HomeScreen
 import com.robomorse.app.ui.home.HomeViewModel
@@ -78,6 +80,7 @@ private fun AppNav(c: AppContainer) {
                 onHeadCopy = { nav.navigate("headcopy") },
                 onLadder = { nav.navigate("ladder") },
                 onOnAir = { nav.navigate("onair") },
+                onVoice = { nav.navigate("voice") },
                 onFreeSend = { nav.navigate("send/FREE") },
                 onEcho = { nav.navigate("send/ECHO") },
                 onStats = { nav.navigate("stats") },
@@ -114,6 +117,7 @@ private fun AppNav(c: AppContainer) {
         composable("headcopy") { HeadCopyScreen(viewModel { HeadCopyViewModel(c) }, onBack = { nav.popBackStack() }) }
         composable("ladder") { LadderScreen(viewModel { LadderViewModel(c) }, onBack = { nav.popBackStack() }) }
         composable("onair") { OnAirScreen(viewModel { OnAirViewModel(c) }, onBack = { nav.popBackStack() }) }
+        composable("voice") { VoiceScreen(viewModel { VoiceViewModel(c) }, onBack = { nav.popBackStack() }) }
         composable("stats") {
             StatsScreen(viewModel { StatsViewModel(c) }, onBack = { nav.popBackStack() }) { ch -> nav.navigate("char/${ch.code}") }
         }
