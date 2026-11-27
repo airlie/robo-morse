@@ -120,7 +120,12 @@ class StatsViewModel(private val c: AppContainer) : ViewModel() {
 }
 
 @Composable
-fun StatsScreen(vm: StatsViewModel, onBack: () -> Unit, onCharacter: (Char) -> Unit) {
+fun StatsScreen(
+    vm: StatsViewModel,
+    onBack: () -> Unit,
+    onPracticePair: (Char, Char) -> Unit = { _, _ -> },
+    onCharacter: (Char) -> Unit,
+) {
     val s by vm.state.collectAsStateWithLifecycle()
     val learned = Curriculum.learned(s.settings.kochOrder, s.settings.learnedCount)
     val scale = SpeedScale.from(s.stats.values)
@@ -164,7 +169,7 @@ fun StatsScreen(vm: StatsViewModel, onBack: () -> Unit, onCharacter: (Char) -> U
                 }
             }
         }
-        ConfusionHeatmap(learned, s.confusions)
+        ConfusionHeatmap(learned, s.confusions, onPracticePair)
     }
 }
 
@@ -259,7 +264,7 @@ private fun Legend(color: Color, label: String) {
 
 /** Rows: what was sent. Columns: what was typed. Darker = more often confused. */
 @Composable
-private fun ConfusionHeatmap(learned: List<Char>, confusions: List<ConfusionEntity>) {
+private fun ConfusionHeatmap(learned: List<Char>, confusions: List<ConfusionEntity>, onPracticePair: (Char, Char) -> Unit) {
     val relevant = confusions.filter { it.expected.first() in learned && it.answered.first() in learned }
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
@@ -271,6 +276,18 @@ private fun ConfusionHeatmap(learned: List<Char>, confusions: List<ConfusionEnti
             Text("Row = character sent, column = what you typed.", style = MaterialTheme.typography.bodySmall)
             val top = relevant.sortedByDescending { it.count }.take(5)
             top.forEach { Text("${it.expected} → ${it.answered}: ${it.count}×", style = MaterialTheme.typography.bodyMedium) }
+            // The worst pairs, either way round, each with a focused drill.
+            val pairs = relevant.groupBy { e ->
+                val a = e.expected.first(); val b = e.answered.first()
+                if (a < b) a to b else b to a
+            }.mapValues { (_, list) -> list.sumOf { it.count } }.entries.sortedByDescending { it.value }.take(3)
+            Spacer(Modifier.height(8.dp))
+            Text("Practice a pair: hear the two side by side, then a short drill on just those two.", style = MaterialTheme.typography.bodySmall)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                pairs.forEach { (pair, _) ->
+                    OutlinedButton(onClick = { onPracticePair(pair.first, pair.second) }) { Text("${pair.first} / ${pair.second}") }
+                }
+            }
             Spacer(Modifier.height(8.dp))
             val chars = (relevant.map { it.expected.first() } + relevant.map { it.answered.first() }).distinct()
                 .sortedBy { learned.indexOf(it) }

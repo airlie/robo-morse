@@ -60,6 +60,8 @@ data class Settings(
     val voiceAllChars: Boolean = false,
     /** Koch lessons: group length reached last time (the next lesson starts a step below). */
     val kochGroupLength: Int = 1,
+    /** A short sound for right and wrong answers in lessons, ICR and the refresher. */
+    val answerSounds: Boolean = true,
 )
 
 private val Context.dataStore by preferencesDataStore(name = "settings")
@@ -100,6 +102,7 @@ class SettingsRepository(private val context: Context) {
         val voiceLevel = stringPreferencesKey("voiceLevel")
         val voiceAllChars = booleanPreferencesKey("voiceAllChars")
         val kochGroupLength = intPreferencesKey("kochGroupLength")
+        val answerSounds = booleanPreferencesKey("answerSounds")
     }
 
     val settings: Flow<Settings> = context.dataStore.data.map { p -> p.toSettings() }
@@ -143,6 +146,7 @@ class SettingsRepository(private val context: Context) {
             voiceLevel = this[K.voiceLevel] ?: d.voiceLevel,
             voiceAllChars = this[K.voiceAllChars] ?: d.voiceAllChars,
             kochGroupLength = this[K.kochGroupLength] ?: d.kochGroupLength,
+            answerSounds = this[K.answerSounds] ?: d.answerSounds,
         )
     }
 
@@ -183,6 +187,7 @@ class SettingsRepository(private val context: Context) {
             p[K.voiceLevel] = s.voiceLevel
             p[K.voiceAllChars] = s.voiceAllChars
             p[K.kochGroupLength] = s.kochGroupLength
+            p[K.answerSounds] = s.answerSounds
         }
     }
 }

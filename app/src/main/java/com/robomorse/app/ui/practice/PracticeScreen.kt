@@ -183,7 +183,9 @@ private fun TopBar(s: PracticeUiState, onPause: () -> Unit, onEnd: () -> Unit) {
         Spacer(Modifier.height(4.dp))
         Row {
             Text(formatMs(s.elapsedMs), style = MaterialTheme.typography.labelMedium, modifier = Modifier.weight(1f))
-            if (s.attempts > 0) {
+            if (s.focusPair != null) {
+                if (s.focusItems > 0) Text("${s.focusRight} of ${s.focusItems} right in this drill", style = MaterialTheme.typography.labelMedium)
+            } else if (s.attempts > 0) {
                 Text(
                     "${s.attempts} answered · recent accuracy ${(s.rollingAccuracy * 100).toInt()}%",
                     style = MaterialTheme.typography.labelMedium,
@@ -264,7 +266,11 @@ private fun ReadyCard(s: PracticeUiState, onStart: () -> Unit) {
                 PracticeMode.KOCH ->
                     "Listen to each group and type the characters as you hear them. Don't count dits and dahs; " +
                         "let each sound map straight to its letter. If you don't know one, skip it and move on." +
-                        "\n\nGroups start short, one character at a time, and grow as you get them right."
+                        "\n\nGroups start short, one character at a time, and grow as you get them right." +
+                        (s.warmupPair?.let { (a, b) ->
+                            if (s.warmupChosen) "\n\nFirst, a short drill on $a and $b."
+                            else "\n\nFirst, a short warm-up on $a and $b, which you've been mixing up lately."
+                        } ?: "")
                 PracticeMode.ICR ->
                     "One character at a time. Answer as fast as you can. Speed of recognition is what this drill trains."
                 PracticeMode.REFRESH ->
@@ -401,7 +407,7 @@ private fun AnswerArea(
             }
             Spacer(Modifier.height(12.dp))
             Text(
-                s.lengthNote ?: "Next group in a moment",
+                s.lengthNote ?: if (s.feedback.size == 1) "Next one in a moment" else "Next group in a moment",
                 style = if (s.lengthNote != null) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.labelMedium,
                 color = if (s.lengthNote?.startsWith("Nice") == true) CorrectGreen else MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
@@ -482,8 +488,11 @@ private fun FocusIntroCard(s: PracticeUiState, onSkip: () -> Unit) {
         Text("${pair.first} or ${pair.second}?", style = MaterialTheme.typography.headlineMedium)
         Spacer(Modifier.height(8.dp))
         Text(
-            "You've mixed these two up a few times. That's very common. Listen to them side by side, " +
-                "then a short drill of just these two.",
+            when {
+                s.attempts > 0 -> "You've mixed these two up a few times. That's very common. "
+                s.warmupChosen -> ""
+                else -> "A warm-up on two characters you've been mixing up lately. "
+            } + "Listen to them side by side, then a short drill of just these two.",
             style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.Center,
         )

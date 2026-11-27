@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.robomorse.app.AppContainer
 import com.robomorse.app.data.Settings
+import com.robomorse.app.data.practiceDataShareIntent
 import com.robomorse.app.reminder.Reminders
 import com.robomorse.core.MorseTiming
 import kotlinx.coroutines.launch
@@ -168,9 +169,18 @@ fun SettingsScreen(c: AppContainer, onBack: () -> Unit) {
         ToggleRow("Hard mode (every key active)", s.hardMode) { on -> update { it.copy(hardMode = on) } }
         ToggleRow("Key vibration", s.haptics) { on -> update { it.copy(haptics = on) } }
         ToggleRow("Show the pattern of missed characters", s.showPatternOnMiss) { on -> update { it.copy(showPatternOnMiss = on) } }
+        ToggleRow("Right/wrong sounds in lessons and ICR", s.answerSounds) { on -> update { it.copy(answerSounds = on) } }
 
         HorizontalDivider()
         Section("Progress")
+        OutlinedButton(onClick = {
+            scope.launch { context.startActivity(practiceDataShareIntent(context, c.repository)) }
+        }) { Text("Share practice data") }
+        Text(
+            "Saves every session and answer to a file (no callsign or account details) and opens the share menu, " +
+                "so you can send it to the developer to help tune the app. Nothing is sent unless you choose where.",
+            style = MaterialTheme.typography.bodySmall,
+        )
         Button(onClick = { confirmReset = true }) { Text("Reset all progress") }
     }
 

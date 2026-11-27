@@ -99,6 +99,15 @@ interface MorseDao {
     @Query("SELECT * FROM session WHERE id = :id")
     suspend fun session(id: Long): SessionEntity?
 
+    /** The latest character answers, newest first. */
+    @Query("SELECT * FROM attempt ORDER BY id DESC LIMIT :limit")
+    suspend fun recentAttempts(limit: Int): List<AttemptEntity>
+
+    // Everything, for exporting.
+    @Query("SELECT * FROM session ORDER BY id") suspend fun allSessions(): List<SessionEntity>
+    @Query("SELECT * FROM attempt ORDER BY id") suspend fun allAttempts(): List<AttemptEntity>
+    @Query("SELECT * FROM confusion") suspend fun allConfusions(): List<ConfusionEntity>
+
     @Query("SELECT * FROM session WHERE id > :afterId AND mode = :mode ORDER BY id")
     suspend fun sessionsAfter(afterId: Long, mode: String): List<SessionEntity>
 

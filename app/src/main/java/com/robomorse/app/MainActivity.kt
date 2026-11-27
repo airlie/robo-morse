@@ -88,10 +88,18 @@ private fun AppNav(c: AppContainer) {
                 onCharacter = { ch -> nav.navigate("char/${ch.code}") },
             )
         }
-        composable("practice/{mode}", arguments = listOf(navArgument("mode") { type = NavType.StringType })) { entry ->
+        composable(
+            "practice/{mode}?pair={pair}",
+            arguments = listOf(
+                navArgument("mode") { type = NavType.StringType },
+                navArgument("pair") { type = NavType.StringType; nullable = true; defaultValue = null },
+            ),
+        ) { entry ->
             val mode = PracticeMode.valueOf(entry.arguments?.getString("mode") ?: "KOCH")
+            // A pair picked in Stats ("KM") is drilled before the lesson.
+            val pair = entry.arguments?.getString("pair")?.takeIf { it.length == 2 }?.let { it[0] to it[1] }
             PracticeScreen(
-                viewModel { PracticeViewModel(c, mode) },
+                viewModel { PracticeViewModel(c, mode, pair) },
                 onSwitch = { next -> nav.navigate("practice/${next.name}") { popUpTo("home") } },
             ) { hasSummary ->
                 if (hasSummary) {
@@ -119,7 +127,11 @@ private fun AppNav(c: AppContainer) {
         composable("onair") { OnAirScreen(viewModel { OnAirViewModel(c) }, onBack = { nav.popBackStack() }) }
         composable("voice") { VoiceScreen(viewModel { VoiceViewModel(c) }, onBack = { nav.popBackStack() }) }
         composable("stats") {
-            StatsScreen(viewModel { StatsViewModel(c) }, onBack = { nav.popBackStack() }) { ch -> nav.navigate("char/${ch.code}") }
+            StatsScreen(
+                viewModel { StatsViewModel(c) },
+                onBack = { nav.popBackStack() },
+                onPracticePair = { a, b -> nav.navigate("practice/KOCH?pair=$a$b") },
+            ) { ch -> nav.navigate("char/${ch.code}") }
         }
         composable("char/{ch}") { entry ->
             val ch = entry.arguments?.getString("ch")?.toIntOrNull()?.toChar() ?: 'K'

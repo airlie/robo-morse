@@ -102,3 +102,22 @@ class ProgressionTest {
         assertNotNull(f)
     }
 }
+
+class WorstPairTest {
+    private val learned = "KMRS".toSet()
+
+    @Test
+    fun findsAFrequentMixUp() {
+        val recent = List(20) { 'K' to 'K' } + List(3) { 'K' to 'M' } + List(2) { 'M' to 'K' } + List(10) { 'R' to 'R' }
+        assertEquals('K' to 'M', PairDrill.worstPair(recent, learned))
+    }
+
+    @Test
+    fun ignoresRareOrDilutedMixUps() {
+        assertNull(PairDrill.worstPair(List(3) { 'K' to 'M' }, learned))
+        val diluted = List(60) { 'K' to 'K' } + List(4) { 'K' to 'M' }
+        assertNull(PairDrill.worstPair(diluted, learned))
+        // Misses with no answer, or answers outside the learned set, aren't mix-ups.
+        assertNull(PairDrill.worstPair(List(6) { 'K' to null } + List(6) { 'K' to 'X' }, learned))
+    }
+}

@@ -6,6 +6,8 @@ import com.robomorse.core.SessionSummary
 import com.robomorse.core.SpeedPolicy
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import org.json.JSONArray
+import org.json.JSONObject
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -57,6 +59,74 @@ class Repository(private val dao: MorseDao, val settings: SettingsRepository) {
     suspend fun session(id: Long) = dao.session(id)
 
     suspend fun charHistory(c: Char) = dao.charHistory(c.toString())
+
+    /** The latest [limit] character answers as (sent, typed) pairs, newest first. */
+    suspend fun recentAnswers(limit: Int = 150): List<Pair<Char, Char?>> =
+        dao.recentAttempts(limit).map { it.expected.first() to it.answered?.firstOrNull() }
+
+    /**
+     * All practice data as JSON, for the learner to share with a developer if they
+     * choose to: settings (without their callsign), character stats, mix-ups, sessions
+     * and every answer.
+     */
+    suspend fun exportJson(appVersion: String): String {
+        val s = settings.current()
+        val root = JSONObject()
+        root.put("format", "robo-morse-export-1")
+        root.put("appVersion", appVersion)
+        root.put("exportedAt", System.currentTimeMillis())
+        root.put("timeZone", ZoneId.systemDefault().id)
+        root.put(
+            "settings",
+            JSONObject()
+                .put("charWpm", s.charWpm).put("effWpm", s.effWpm).put("pitchHz", s.pitchHz)
+                .put("learnedCount", s.learnedCount).put("kochOrder", s.kochOrder)
+                .put("dailyGoalMinutes", s.dailyGoalMinutes).put("hardMode", s.hardMode)
+                .put("replayMissed", s.replayMissed).put("groupGapMs", s.groupGapMs)
+                .put("breatherEvery", s.breatherEvery).put("kochGroupLength", s.kochGroupLength)
+                .put("answerSounds", s.answerSounds),
+        )
+        root.put(
+            "stats",
+            JSONArray(
+                dao.allStats().map {
+                    JSONObject().put("symbol", it.symbol).put("acc", it.acc).put("rtMs", it.rtMs ?: JSONObject.NULL)
+                        .put("bestRtMs", it.bestRtMs ?: JSONObject.NULL).put("attempts", it.attempts).put("correct", it.correct)
+                        .put("srsStabilityDays", it.srsStabilityDays).put("srsDueMs", it.srsDueMs)
+                },
+            ),
+        )
+        root.put(
+            "confusions",
+            JSONArray(dao.allConfusions().map { JSONObject().put("sent", it.expected).put("typed", it.answered).put("count", it.count) }),
+        )
+        root.put(
+            "sessions",
+            JSONArray(
+                dao.allSessions().map {
+                    JSONObject().put("id", it.id).put("mode", it.mode).put("startedAt", it.startedAt).put("endedAt", it.endedAt)
+                        .put("charWpm", it.charWpm).put("effWpm", it.effWpm).put("attempts", it.attempts)
+                        .put("correct", it.correct).put("learnedCount", it.learnedCount).put("unlocked", it.unlocked)
+                },
+            ),
+        )
+        // Answers as compact rows: [session, sent, typed, correct, response ms, time, input].
+        root.put("attemptColumns", JSONArray(listOf("sessionId", "sent", "typed", "correct", "rtMs", "timestamp", "input")))
+        root.put(
+            "attempts",
+            JSONArray(
+                dao.allAttempts().map {
+                    JSONArray(
+                        listOf(
+                            it.sessionId, it.expected, it.answered ?: JSONObject.NULL, it.correct,
+                            it.rtMs?.let { rt -> Math.round(rt) } ?: JSONObject.NULL, it.timestamp, it.inputMethod,
+                        ),
+                    )
+                },
+            ),
+        )
+        return root.toString()
+    }
 
     /**
      * Saves a finished session, records newly unlocked characters, and applies the

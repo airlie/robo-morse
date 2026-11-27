@@ -43,5 +43,26 @@ class PairDrill(val a: Char, val b: Char, private val random: Random = Random.De
         const val WINDOW = 8
         const val PASS = 7
         const val MAX_ITEMS = 24
+
+        /** Mixed up at least this often, and in at least this share of answers on the two, to earn a warm-up drill. */
+        const val WARMUP_MIN_MIXUPS = 4
+        const val WARMUP_MIN_RATE = 0.10
+
+        /**
+         * The pair most often mixed up (either way round) in [recent] answers, as
+         * (sent, typed) pairs, if it is bad enough to be worth a warm-up drill: at least
+         * [WARMUP_MIN_MIXUPS] mix-ups, making up at least [WARMUP_MIN_RATE] of the answers
+         * on those two characters. Only pairs of characters in [learned] count.
+         */
+        fun worstPair(recent: List<Pair<Char, Char?>>, learned: Set<Char>): Pair<Char, Char>? {
+            val mixups = recent.mapNotNull { (sent, typed) ->
+                if (typed == null || typed == sent || sent !in learned || typed !in learned) null
+                else if (sent < typed) sent to typed else typed to sent
+            }.groupingBy { it }.eachCount()
+            val (pair, n) = mixups.maxByOrNull { it.value } ?: return null
+            if (n < WARMUP_MIN_MIXUPS) return null
+            val onPair = recent.count { it.first == pair.first || it.first == pair.second }
+            return if (n.toDouble() / onPair >= WARMUP_MIN_RATE) pair else null
+        }
     }
 }

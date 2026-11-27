@@ -29,6 +29,8 @@ import java.time.LocalDate
 /** A filled group is scored after this long, leaving a moment to change a letter. */
 private const val SUBMIT_GRACE_MS = 600L
 private const val LOG_TAG = "RoboMorse"
+/** How much to slow the effective speed once accuracy drops off late in a session. */
+private const val FATIGUE_SLOWDOWN_WPM = 2
 /** Breathers are counted in characters: this many per group's worth in a lesson. */
 private const val CHARS_PER_GROUP = 4
 /** ICR: a few seconds' rest every 2 × the breather setting, a full breather every 8 ×. */
@@ -84,13 +86,24 @@ data class PracticeUiState(
     val focusPair: Pair<Char, Char>? = null,
     val focusShowing: Char? = null,
     val focusResult: String? = null,
+    /** A pair to drill before the lesson: chosen in Stats, or the worst mix-up from recent sessions. */
+    val warmupPair: Pair<Char, Char>? = null,
+    val warmupChosen: Boolean = false,
+    /** Score in the current pair drill. */
+    val focusItems: Int = 0,
+    val focusRight: Int = 0,
 ) {
     /** True only while a key press will be used as an answer. */
     val acceptingInput: Boolean get() = phase == Phase.ANSWERING && !paused
     val canPause: Boolean get() = !paused && phase in setOf(Phase.INTRO, Phase.FOCUS_INTRO, Phase.ANSWERING, Phase.FEEDBACK, Phase.FOCUS_DONE)
 }
 
-class PracticeViewModel(private val c: AppContainer, private val mode: PracticeMode) : ViewModel() {
+class PracticeViewModel(
+    private val c: AppContainer,
+    private val mode: PracticeMode,
+    /** A pair picked in Stats to drill first. */
+    private val startPair: Pair<Char, Char>? = null,
+) : ViewModel() {
     private val _state = MutableStateFlow(PracticeUiState(mode = mode))
     val state: StateFlow<PracticeUiState> = _state
 
@@ -121,6 +134,9 @@ class PracticeViewModel(private val c: AppContainer, private val mode: PracticeM
     private val edited = mutableSetOf<Int>()
     private var editIndex: Int? = null
     private var focus: PairDrill? = null
+    private var warmupPair: Pair<Char, Char>? = null
+    /** Effective WPM taken off for the rest of the session once tiredness shows. */
+    private var slowdown = 0
     private var loopJob: Job? = null
     private var idleJob: Job? = null
     private var replayJob: Job? = null
@@ -138,6 +154,13 @@ class PracticeViewModel(private val c: AppContainer, private val mode: PracticeM
             )
             val goalRemaining = (settings.dailyGoalMinutes * 60_000L - (today * 60_000).toLong()).coerceAtLeast(0)
             goalAnnounced = goalRemaining == 0L
+            // A lesson opens with a short drill on a pair picked in Stats, or else on the pair
+            // most mixed up lately, if that is bad enough to be worth it.
+            if (mode == PracticeMode.KOCH) {
+                val active = session.active.toSet()
+                warmupPair = startPair?.takeIf { it.first in active && it.second in active }
+                    ?: PairDrill.worstPair(c.repository.recentAnswers(), active)
+            }
             _state.update {
                 it.copy(
                     phase = Phase.READY,
@@ -151,6 +174,8 @@ class PracticeViewModel(private val c: AppContainer, private val mode: PracticeM
                     effWpm = timing.effWpm.toInt(),
                     // A refresher always shows the pattern of a miss: it's there to hold your hand.
                     showPatterns = settings.showPatternOnMiss || mode == PracticeMode.REFRESH,
+                    warmupPair = warmupPair,
+                    warmupChosen = startPair != null,
                     groupLength = session.groupLength,
                 )
             }
@@ -159,7 +184,8 @@ class PracticeViewModel(private val c: AppContainer, private val mode: PracticeM
 
     /** A refresher spaces characters a little further apart (2 WPM slower effective speed). */
     private val timing: MorseTiming get() {
-        val eff = if (mode == PracticeMode.REFRESH) (settings.effWpm - 2).coerceAtLeast(5) else settings.effWpm
+        val base = settings.effWpm - slowdown
+        val eff = (if (mode == PracticeMode.REFRESH) base - 2 else base).coerceAtLeast(5)
         return MorseTiming(settings.charWpm.toDouble(), eff.coerceAtMost(settings.charWpm).toDouble())
     }
 
@@ -180,7 +206,14 @@ class PracticeViewModel(private val c: AppContainer, private val mode: PracticeM
             mode == PracticeMode.REFRESH -> pendingIntro.addAll(session.active)
             session.learned.all { session.statsFor(it).attempts == 0 } -> pendingIntro.addAll(session.learned)
         }
-        loopJob = viewModelScope.launch { runIntrosThenPrompt() }
+        loopJob = viewModelScope.launch {
+            while (pendingIntro.isNotEmpty()) {
+                introduce(pendingIntro.first())
+                pendingIntro.removeFirst()
+            }
+            val pair = warmupPair
+            if (pair != null) startFocus(pair) else nextPrompt()
+        }
     }
 
     private suspend fun runIntrosThenPrompt() {
@@ -345,6 +378,8 @@ class PracticeViewModel(private val c: AppContainer, private val mode: PracticeM
                 learned = drill?.let { d -> setOf(d.a, d.b) } ?: session.active.toSet(),
                 groupLength = session.groupLength,
                 lengthNote = note,
+                focusItems = drill?.items ?: 0,
+                focusRight = drill?.correct ?: 0,
             )
         }
         if (note != null) viewModelScope.launch { c.settings.update { it.copy(kochGroupLength = session.groupLength) } }
@@ -368,6 +403,7 @@ class PracticeViewModel(private val c: AppContainer, private val mode: PracticeM
      * leaves a gap before the next group, with an occasional rest or breather.
      */
     private suspend fun reviewThenContinue(results: List<AttemptResult>) {
+        if (settings.answerSounds) c.player.cue(results.all { it.correct }, settings.volume)
         val replay = results.indices.filter { !results[it].correct && shouldReplay(results[it].expected) }
         if (results.any { !it.correct }) delay(900) // time to read what was missed
         if (replay.isNotEmpty()) {
@@ -440,7 +476,9 @@ class PracticeViewModel(private val c: AppContainer, private val mode: PracticeM
         session.focusPairStarted()
         val drill = PairDrill(pair.first, pair.second)
         focus = drill
-        _state.update { it.copy(phase = Phase.FOCUS_INTRO, focusPair = pair, focusShowing = null, learned = setOf(pair.first, pair.second)) }
+        _state.update {
+            it.copy(phase = Phase.FOCUS_INTRO, focusPair = pair, focusShowing = null, learned = setOf(pair.first, pair.second), focusItems = 0, focusRight = 0)
+        }
         delay(1800)
         repeat(2) {
             for (ch in listOf(pair.first, pair.second)) {
@@ -522,7 +560,16 @@ class PracticeViewModel(private val c: AppContainer, private val mode: PracticeM
             _state.update { it.copy(bannerAction = BannerAction.FINISH, banner = "Daily goal reached. Stopping here is a good choice: spaced practice beats marathons.") }
         } else if (!fatigueAnnounced && session.fatigueDetected()) {
             fatigueAnnounced = true
-            _state.update { it.copy(bannerAction = BannerAction.FINISH, banner = "Accuracy is dropping. That usually means diminishing returns, so this is a good place to stop.") }
+            // Ease off: a little more space between characters for the rest of the session.
+            slowdown = FATIGUE_SLOWDOWN_WPM
+            _state.update {
+                it.copy(
+                    effWpm = timing.effWpm.toInt(),
+                    bannerAction = BannerAction.FINISH,
+                    banner = "Accuracy is dropping, which usually means you're tiring. Characters are now spaced a little " +
+                        "further apart. Stopping here is a good choice too.",
+                )
+            }
         }
     }
 

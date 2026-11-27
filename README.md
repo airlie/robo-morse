@@ -44,7 +44,8 @@ See [PLAN.md](PLAN.md) for the full design, including the evidence behind each c
   introductions of new characters and between-session speed adjustment.
 - **Mix-up drill:** mix up the same two characters 3 times in 30 answers and the lesson
   pauses for a short focused drill: hear them side by side, then just those two, one at a
-  time, until 7 of 8 are right.
+  time, until 7 of 8 are right. A lesson opens with the same drill as a warm-up when a pair
+  has been mixed up often lately, and Stats offers a drill on each of your worst pairs.
 - **ICR sprint:** one character at a time, timed from the moment its sound ends, with a
   few seconds' automatic rest every 20 characters and a full breather less often.
 - **Word & callsign copy:** hear a whole word, ham abbreviation or callsign and type it.
@@ -76,6 +77,10 @@ See [PLAN.md](PLAN.md) for the full design, including the evidence behind each c
   response times.
 - **Fixed-layout answer keyboard:** large keys that never move, with unlearned keys
   dimmed and timing taken from touch-down. Bluetooth keyboards work too.
+- **Answer sounds:** a short rising or falling tone for right and wrong answers (can be
+  turned off).
+- **Easing off:** when accuracy drops late in a session, characters are spaced a little
+  further apart for the rest of it, and the app suggests stopping.
 - **Pacing:** adjustable gap between groups, periodic breathers, pause and automatic
   pause when interrupted, and optional replay of missed characters.
 
@@ -94,7 +99,9 @@ See [PLAN.md](PLAN.md) for the full design, including the evidence behind each c
   history, and a confusion heatmap.
 - An optional daily reminder, skipped if you've already practiced.
 
-Everything runs offline, with no account. Data stays on the device.
+Everything runs offline, with no account. Data stays on the device unless you choose to
+share it: Settings → Share practice data saves every session and answer to a JSON file
+(without your callsign) and opens Android's share menu.
 
 ## Building
 
