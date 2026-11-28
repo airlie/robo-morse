@@ -119,6 +119,12 @@ fun SettingsScreen(c: AppContainer, onBack: () -> Unit) {
         OutlinedButton(onClick = {
             scope.launch { c.player.play("PARIS", MorseTiming(s.charWpm.toDouble(), s.effWpm.toDouble()), s.pitchHz, s.volume) }
         }) { Text("Test sound") }
+        ToggleRow("Louder tone for noisy places", s.louderTone) { on -> update { it.copy(louderTone = on) } }
+        Text(
+            "Rounds the tone towards a buzz, which phone speakers play much louder. " +
+                "A higher pitch (700 to 800 Hz) also carries better than 600 Hz.",
+            style = MaterialTheme.typography.bodySmall,
+        )
 
         HorizontalDivider()
         Section("Goals and reminders")

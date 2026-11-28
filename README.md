@@ -83,6 +83,8 @@ See [PLAN.md](PLAN.md) for the full design, including the evidence behind each c
   further apart for the rest of it, and the app suggests stopping.
 - **Pacing:** adjustable gap between groups, periodic breathers, pause and automatic
   pause when interrupted, and optional replay of missed characters.
+- **Sound:** pitch and volume (an even, decibel-scaled slider), and a "louder tone" option
+  that rounds the tone towards a buzz so it carries in a noisy room on a phone speaker.
 
 **Sending**
 - On-screen **straight key** or **iambic paddle** (Mode A/B, with dit/dah memory).

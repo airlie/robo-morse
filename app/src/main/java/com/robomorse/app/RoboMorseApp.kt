@@ -6,6 +6,7 @@ import com.robomorse.app.data.MorseDatabase
 import com.robomorse.app.data.Repository
 import com.robomorse.app.data.SettingsRepository
 import com.robomorse.app.reminder.Reminders
+import kotlinx.coroutines.launch
 
 /** Simple manual dependency container. */
 class AppContainer(app: Application) {
@@ -16,6 +17,12 @@ class AppContainer(app: Application) {
     val voice = com.robomorse.app.audio.VoiceListener(app)
     /** Text-to-speech, started on first use. */
     val speaker by lazy { com.robomorse.app.audio.Speaker(app) }
+
+    init {
+        // Tone settings that every player reads as it makes sound.
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default)
+            .launch { settings.settings.collect { player.louder = it.louderTone; sidetone.louder = it.louderTone } }
+    }
 
     /** Hand-off from the practice screen to the summary screen. */
     var lastResult: PracticeResult? = null

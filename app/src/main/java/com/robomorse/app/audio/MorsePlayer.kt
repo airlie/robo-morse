@@ -27,12 +27,16 @@ class MorsePlayer {
 
     @Volatile private var current: AudioTrack? = null
 
+    /** Soft-clipped "louder" tone for noisy places (a setting). */
+    @Volatile var louder: Boolean = false
+
     /** Builds 16-bit mono PCM for [rendered], with raised-cosine edges to avoid clicks. */
     fun synthesize(rendered: RenderedText, pitchHz: Int, volume: Float): ShortArray {
         val totalSamples = (rendered.totalMs * sampleRate / 1000).roundToInt() + sampleRate / 20
         val pcm = ShortArray(totalSamples)
         val rampSamples = (rampMs * sampleRate / 1000).roundToInt().coerceAtLeast(1)
-        val amp = (Short.MAX_VALUE * volume.coerceIn(0f, 1f) * 0.8f)
+        val amp = Short.MAX_VALUE * Loudness.gain(volume)
+        val louder = louder
         var t = 0.0
         for (seg in rendered.segments) {
             val start = (t * sampleRate / 1000).roundToInt()
@@ -45,7 +49,7 @@ class MorsePlayer {
                         i >= n - rampSamples -> 0.5 * (1 - cos(PI * (n - i) / rampSamples))
                         else -> 1.0
                     }
-                    val s = sin(2 * PI * pitchHz * (start + i) / sampleRate)
+                    val s = Loudness.shape(sin(2 * PI * pitchHz * (start + i) / sampleRate), louder)
                     pcm[start + i] = (amp * env * s).toInt().toShort()
                 }
             }
@@ -94,10 +98,11 @@ class MorsePlayer {
     /**
      * A short sound for a right answer (two quick rising notes) or a wrong one (two low
      * falling notes), pitched well away from the Morse tone so it isn't mistaken for it.
+     * Phone speakers play the high notes much louder than the Morse tone, so those are quieter.
      */
     suspend fun cue(right: Boolean, volume: Float) = withContext(Dispatchers.Default) {
         val notes = if (right) listOf(988 to 70, 1319 to 110) else listOf(330 to 130, 220 to 200)
-        val amp = Short.MAX_VALUE * volume.coerceIn(0f, 1f) * 0.6f
+        val amp = Short.MAX_VALUE * Loudness.gain(volume) * (if (right) 0.35 else 0.7)
         val ramp = (rampMs * sampleRate / 1000).roundToInt()
         val gap = sampleRate * 25 / 1000
         val pcm = ShortArray(notes.sumOf { (_, ms) -> ms * sampleRate / 1000 + gap } + sampleRate / 20)

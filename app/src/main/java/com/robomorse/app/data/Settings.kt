@@ -20,7 +20,7 @@ data class Settings(
     val charWpm: Int = 20,
     val effWpm: Int = 10,
     val pitchHz: Int = 600,
-    val volume: Float = 0.8f,
+    val volume: Float = 1f,
     val dailyGoalMinutes: Int = 15,
     val weeklyGoalDays: Int = 5,
     val learnedCount: Int = Curriculum.STARTING_CHARACTERS,
@@ -63,6 +63,8 @@ data class Settings(
     val kochGroupLength: Int = 1,
     /** A short sound for right and wrong answers in lessons, ICR and the refresher. */
     val answerSounds: Boolean = true,
+    /** Soft-clip the tone so it carries in a noisy room (less pure, but much louder on a phone speaker). */
+    val louderTone: Boolean = false,
 )
 
 private val Context.dataStore by preferencesDataStore(name = "settings")
@@ -104,6 +106,7 @@ class SettingsRepository(private val context: Context) {
         val voiceAllChars = booleanPreferencesKey("voiceAllChars")
         val kochGroupLength = intPreferencesKey("kochGroupLength")
         val answerSounds = booleanPreferencesKey("answerSounds")
+        val louderTone = booleanPreferencesKey("louderTone")
     }
 
     val settings: Flow<Settings> = context.dataStore.data.map { p -> p.toSettings() }
@@ -191,6 +194,7 @@ class SettingsRepository(private val context: Context) {
             voiceAllChars = this[K.voiceAllChars] ?: d.voiceAllChars,
             kochGroupLength = this[K.kochGroupLength] ?: d.kochGroupLength,
             answerSounds = this[K.answerSounds] ?: d.answerSounds,
+            louderTone = this[K.louderTone] ?: d.louderTone,
         )
     }
 
@@ -232,6 +236,7 @@ class SettingsRepository(private val context: Context) {
             p[K.voiceAllChars] = s.voiceAllChars
             p[K.kochGroupLength] = s.kochGroupLength
             p[K.answerSounds] = s.answerSounds
+            p[K.louderTone] = s.louderTone
         }
     }
 }

@@ -18,6 +18,7 @@ class Sidetone(private val context: Context) {
     @Volatile var keyed: Boolean = false
     @Volatile var pitchHz: Int = 600
     @Volatile var volume: Float = 0.8f
+    @Volatile var louder: Boolean = false
 
     /** Approximate output buffer delay, for display. */
     @Volatile var bufferMs: Int = 0
@@ -83,11 +84,12 @@ class Sidetone(private val context: Context) {
             while (running) {
                 val on = keyed
                 val step = 2 * PI * pitchHz / rate
-                val amp = Short.MAX_VALUE * volume.coerceIn(0f, 1f) * 0.8
+                val amp = Short.MAX_VALUE * Loudness.gain(volume)
+                val louder = louder
                 for (i in chunk.indices) {
                     if (on && rampPos < rampSamples) rampPos++ else if (!on && rampPos > 0) rampPos--
                     val env = 0.5 * (1 - cos(PI * rampPos / rampSamples))
-                    chunk[i] = (amp * env * sin(phase)).toInt().toShort()
+                    chunk[i] = (amp * env * Loudness.shape(sin(phase), louder)).toInt().toShort()
                     phase += step
                     if (phase > 2 * PI) phase -= 2 * PI
                 }

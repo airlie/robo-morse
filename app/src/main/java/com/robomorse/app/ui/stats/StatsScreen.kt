@@ -60,6 +60,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
+import androidx.compose.ui.res.painterResource
+import com.robomorse.app.R
 import androidx.compose.runtime.DisposableEffect
 import com.robomorse.core.ItemStats
 import com.robomorse.core.LearnerModel
@@ -281,11 +286,25 @@ private fun ConfusionHeatmap(learned: List<Char>, confusions: List<ConfusionEnti
                 val a = e.expected.first(); val b = e.answered.first()
                 if (a < b) a to b else b to a
             }.mapValues { (_, list) -> list.sumOf { it.count } }.entries.sortedByDescending { it.value }.take(3)
-            Spacer(Modifier.height(8.dp))
-            Text("Practice a pair: hear the two side by side, then a short drill on just those two.", style = MaterialTheme.typography.bodySmall)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                pairs.forEach { (pair, _) ->
-                    OutlinedButton(onClick = { onPracticePair(pair.first, pair.second) }) { Text("${pair.first} / ${pair.second}") }
+            Spacer(Modifier.height(12.dp))
+            Text("Practice a pair", style = MaterialTheme.typography.titleSmall)
+            Text("Hear the two side by side, then a short drill on just those two.", style = MaterialTheme.typography.bodySmall)
+            pairs.forEach { (pair, count) ->
+                Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "${pair.first} and ${pair.second}",
+                        Modifier.padding(end = 16.dp),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Text(if (count == 1) "1 mix-up" else "$count mix-ups", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                    FilledTonalButton(
+                        onClick = { onPracticePair(pair.first, pair.second) },
+                        contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
+                    ) {
+                        Icon(painterResource(R.drawable.ic_play), contentDescription = null, Modifier.size(ButtonDefaults.IconSize))
+                        Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+                        Text("Drill")
+                    }
                 }
             }
             Spacer(Modifier.height(8.dp))
